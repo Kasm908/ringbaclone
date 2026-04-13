@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import type { ScamReport } from "../types";
 import Badge from "./ui/Badge";
-import type { href } from "react-router-dom";
+
 
 interface ReportsTableProps {
   reports: ScamReport[];
