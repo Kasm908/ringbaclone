@@ -69,8 +69,9 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
+    const wsUrl = import.meta.env.VITE_WS_URL || "wss://scam-slayer-api.onrender.com";
     const ws = new WebSocket(
-      `ws://127.0.0.1:8000/ws/reports/?token=${token}`
+      `${wsUrl}/ws/reports/?token=${token}`
     );
 
     ws.onmessage = (event) => {
