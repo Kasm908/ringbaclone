@@ -36,6 +36,6 @@ export const authApi = {
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
     localStorage.removeItem("user");
-    window.location.href = "/login";
+    window.location.href = "/ringbaclone/#/login";
   },
 };
