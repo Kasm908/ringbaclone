@@ -24,6 +24,7 @@ class ScamReport(models.Model):
         FAILED = "failed", "Failed"
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    campaign_id = models.CharField(max_length=200, blank=True)
     brand = models.CharField(max_length=200)
     phone_number = models.CharField(max_length=20)
     landing_url = models.URLField(blank=True)

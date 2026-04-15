@@ -12,6 +12,8 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  Menu,
+  X,
 } from "lucide-react";
 import { reportsApi } from "../api/reports";
 import type { ScamReport, Stats } from "../types";
@@ -31,6 +33,7 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showSubmit, setShowSubmit] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const { user, logout } = useAuth();
 
@@ -69,27 +72,57 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     const token = localStorage.getItem("access_token");
-    const wsUrl = import.meta.env.VITE_WS_URL || "wss://scam-slayer-api.onrender.com";
-    const ws = new WebSocket(
-      `${wsUrl}/ws/reports/?token=${token}`
-    );
+    const wsBase = import.meta.env.VITE_WS_URL || "wss://scam-slayer-api.onrender.com";
+    
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let unmounted = false;
+    const MAX_DELAY = 30_000;
 
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      setReports((prev) =>
-        prev.map((r) => (r.id === data.id ? { ...r, ...data } : r))
-      );
-      fetchAll();
+    const connect = (delay = 1000) => {
+      if (unmounted) return;
+
+      ws = new WebSocket(`${wsBase}/ws/reports/?token=${token}`);
+
+      ws.onopen = () => {
+        // reset backoff on successful connection
+        delay = 1000;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          setReports((prev) =>
+            prev.map((r) => (r.id === data.id ? { ...r, ...data } : r))
+          );
+          fetchAll();
+        } catch {
+          // ignore malformed frames
+        }
+      };
+
+      ws.onerror = () => {
+        // onerror always fires before onclose — let onclose handle reconnect
+      };
+
+      ws.onclose = () => {
+        if (unmounted) return;
+        // exponential backoff, cap at 30 s
+        const nextDelay = Math.min(delay * 2, MAX_DELAY);
+        reconnectTimer = setTimeout(() => connect(nextDelay), delay);
+      };
     };
 
-    ws.onerror = () => {
-      console.error("WebSocket error");
-    };
+    connect();
 
     return () => {
-      ws.close();
+      unmounted = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
     };
-  }, [fetchAll]);
+    // ✅ fetchAll intentionally excluded — we don't want reconnects on every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);           // ← empty array: socket opens once per mount
 
   const handleAction = async (id: string, action: "report" | "kill") => {
     setActionLoading(`${id}-${action}`);
@@ -120,7 +153,7 @@ const Dashboard: React.FC = () => {
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg border text-sm font-medium shadow-xl transition-all ${
+          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-lg border text-sm font-medium shadow-xl transition-all max-w-[90vw] sm:max-w-md ${
             toast.ok
               ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
               : "bg-red-500/10 border-red-500/30 text-red-400"
@@ -145,12 +178,12 @@ const Dashboard: React.FC = () => {
 
       {/* Header */}
       <header className="border-b border-[#1a1d2e] bg-[#0b0d14]/80 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center shrink-0">
               <Shield size={18} className="text-red-400" />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <span className="text-white font-bold text-base tracking-tight">
                 Scam Slayer
               </span>
@@ -158,9 +191,15 @@ const Dashboard: React.FC = () => {
                 SOC Portal
               </span>
             </div>
+            <div className="sm:hidden">
+              <span className="text-white font-bold text-sm tracking-tight">
+                Scam Slayer
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Desktop Header Actions */}
+          <div className="hidden md:flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs text-[#4b5563] font-mono">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               Live
@@ -194,15 +233,63 @@ const Dashboard: React.FC = () => {
               <LogOut size={15} />
             </button>
           </div>
+
+          {/* Mobile Menu Button */}
+          <div className="flex md:hidden items-center gap-2">
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="p-2 rounded-lg border border-[#1e2130] text-[#6b7280] hover:text-white transition-colors"
+            >
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </button>
+          </div>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-[#1a1d2e] bg-[#0b0d14] px-4 py-4 space-y-3">
+            <div className="flex items-center gap-2 text-xs text-[#4b5563] font-mono">
+              <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Live
+            </div>
+            <div className="text-xs text-[#4b5563] font-mono truncate">
+              {user?.email} ({user?.role})
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={() => {
+                  setLoading(true);
+                  fetchAll();
+                }}
+                className="flex-1 p-2 rounded-lg border border-[#1e2130] text-[#6b7280] hover:text-white transition-colors flex items-center justify-center gap-2"
+              >
+                <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
+                Refresh
+              </button>
+              <button
+                onClick={() => setShowSubmit(true)}
+                className="flex-1 p-2 bg-red-500 hover:bg-red-600 rounded-lg text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <Plus size={15} />
+                Submit
+              </button>
+              <button
+                onClick={logout}
+                className="p-2 rounded-lg border border-[#1e2130] text-[#6b7280] hover:text-red-400 transition-colors"
+              >
+                <LogOut size={15} />
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
-      <main className="max-w-[1600px] mx-auto px-6 py-8 space-y-8">
+      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
             <StatCard
-              label="Total Reports"
+              label="Total"
               value={stats.total}
               icon={Activity}
               accent="bg-[#1e2130] text-[#6b7280]"
@@ -230,7 +317,8 @@ const Dashboard: React.FC = () => {
               value={stats.this_week}
               icon={TrendingUp}
               accent="bg-purple-500/10 text-purple-400"
-              sub={`of ${stats.total} total`}
+              sub={`of ${stats.total}`}
+              className="col-span-2 sm:col-span-1"
             />
           </div>
         )}
@@ -253,8 +341,8 @@ const Dashboard: React.FC = () => {
         />
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex flex-col gap-3">
+          <div className="relative w-full">
             <Search
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-[#4b5563]"
@@ -270,7 +358,7 @@ const Dashboard: React.FC = () => {
             />
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {["", "pending", "reported", "killed", "failed"].map((s) => (
               <button
                 key={s || "all"}
@@ -296,17 +384,19 @@ const Dashboard: React.FC = () => {
             <RefreshCw size={24} className="animate-spin text-[#4b5563]" />
           </div>
         ) : (
-          <ReportsTable
-            reports={reports}
-            actionLoading={actionLoading}
-            onReport={(id) => handleAction(id, "report")}
-            onKill={(id) => handleAction(id, "kill")}
-          />
+          <div className="overflow-x-auto -mx-4 sm:-mx-6 px-4 sm:px-6">
+            <ReportsTable
+              reports={reports}
+              actionLoading={actionLoading}
+              onReport={(id) => handleAction(id, "report")}
+              onKill={(id) => handleAction(id, "kill")}
+            />
+          </div>
         )}
 
         {/* Pagination */}
         {total > PAGE_SIZE && (
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
             <span className="text-xs text-[#4b5563] font-mono">
               {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)}{" "}
               of {total} reports

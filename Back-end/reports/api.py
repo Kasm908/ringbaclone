@@ -21,7 +21,7 @@ from reports.schemas import (
     LookupIn,
 )
 from reports.tasks import process_resporg_lookup, process_report_complaint
-from reports.services.resporg import lookup_resporg, extract_phone_from_url, normalize_phone
+from reports.services.resporg import lookup_resporg, extract_phone_from_url, normalize_phone, extract_campaign_data
 
 router = Router()
 auth = AuthBearer()
@@ -189,31 +189,49 @@ def update_status(request, report_id: UUID, status: str):
         "new_status": status,
     }
 
-
 @router.post("/lookup", auth=auth, tags=["Lookup"])
 def lookup(request, payload: LookupIn):
-    from ninja.errors import HttpError
+    import uuid
 
     user_input = payload.input.strip()
     is_url = payload.is_url
 
-    if is_url:
-        phone = extract_phone_from_url(user_input)
-        landing_url = user_input
-    else:
+    # PHONE NUMBER: Direct Twilio lookup, NO CELERY
+    if not is_url:
         phone = normalize_phone(user_input)
-        landing_url = ""
-
-    if not phone:
-        raise HttpError(404, "No toll-free number found. Try entering the number manually.")
-
-    result = lookup_resporg(phone)
-
-    return {
-        "phone_number": phone,
-        "carrier_name": result.carrier_name,
-        "resporg_code": result.resporg_code,
-        "abuse_email": result.abuse_email,
-        "landing_url": landing_url,
-        "is_toll_free": result.is_toll_free,
-    }
+        result = lookup_resporg(phone)  # Direct call, instant response
+        
+        return {
+            "lookup_id": "",
+            "phone_number": phone,
+            "carrier_name": result.carrier_name,
+            "resporg_code": result.resporg_code,
+            "abuse_email": result.abuse_email,
+            "landing_url": "",
+            "is_toll_free": result.is_toll_free,
+            "campaign_id": "",
+            "domain": "",
+            "scraping": False,  # No scraping needed for phone
+        }
+    
+    # URL: Campaign data direct, phone scraping via CELERY
+    else:
+        campaign_data = extract_campaign_data(user_input)  # Direct, no Celery
+        lookup_id = str(uuid.uuid4())
+        
+        # Fire Playwright scraping in background via Celery ONLY
+        from reports.tasks import scrape_phone_from_url
+        scrape_phone_from_url.delay(user_input, lookup_id)
+        
+        return {
+            "lookup_id": lookup_id,
+            "phone_number": "",
+            "carrier_name": "",
+            "resporg_code": "",
+            "abuse_email": "",
+            "landing_url": user_input,
+            "is_toll_free": False,
+            "campaign_id": campaign_data.get("campaign_id", ""),
+            "domain": campaign_data.get("domain", ""),
+            "scraping": True,  # Frontend waits for WebSocket
+        }

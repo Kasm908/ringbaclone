@@ -62,6 +62,7 @@ def process_resporg_lookup(report_id: str):
 
 @shared_task
 def process_report_complaint(report_id: str):
+
     from reports.models import ScamReport, ReportLog
     from reports.services.mailer import send_resporg_complaint
 
@@ -104,3 +105,34 @@ def process_report_complaint(report_id: str):
 
     except Exception as e:
         logger.error(f"Complaint failed for report {report_id}: {e}")
+
+@shared_task(time_limit=65, soft_time_limit=60)
+def scrape_phone_from_url(url: str, lookup_id: str):
+    from reports.services.resporg import extract_phone_from_url, lookup_resporg
+    
+    phone = extract_phone_from_url(url)
+    
+    if phone:
+        # Direct Twilio lookup for the scraped phone number
+        result = lookup_resporg(phone)
+        broadcast_update({
+            "type": "lookup_result",
+            "lookup_id": lookup_id,
+            "phone_number": phone,
+            "carrier_name": result.carrier_name,
+            "resporg_code": result.resporg_code,
+            "abuse_email": result.abuse_email,
+            "is_toll_free": result.is_toll_free,
+        })
+    else:
+        broadcast_update({
+            "type": "lookup_result",
+            "lookup_id": lookup_id,
+            "phone_number": "",
+            "carrier_name": "",
+            "resporg_code": "",
+            "abuse_email": "",
+            "is_toll_free": False,
+        })
+
+
