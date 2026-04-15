@@ -1,5 +1,5 @@
 import React from "react";
-import type{ LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface StatCardProps {
   label: string;
@@ -7,6 +7,7 @@ interface StatCardProps {
   icon: LucideIcon;
   accent: string;
   sub?: string;
+  className?: string;
 }
 
 const StatCard: React.FC<StatCardProps> = ({
@@ -15,9 +16,10 @@ const StatCard: React.FC<StatCardProps> = ({
   icon: Icon,
   accent,
   sub,
+  className,
 }) => {
   return (
-    <div className="bg-[#0f1117] border border-[#1e2130] rounded-xl p-5 flex items-start gap-4">
+    <div className={`bg-[#0f1117] border border-[#1e2130] rounded-xl p-5 flex items-start gap-4 ${className ?? ""}`.trim()}>
       <div
         className={`w-10 h-10 rounded-lg flex items-center justify-center ${accent}`}
       >
