@@ -99,7 +99,7 @@ class LookupOut(Schema):
     international_format: str
     national_format: str
     risk_level: str
-    is_disposable: bool
+    is_disposable: Optional[bool] = False
     is_abuse_detected: bool
     line_status: str
     sms_email: str

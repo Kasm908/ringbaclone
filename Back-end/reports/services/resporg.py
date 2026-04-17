@@ -37,7 +37,7 @@ class RespOrgResult:
     international_format: str = ""
     national_format: str = ""
     risk_level: str = ""
-    is_disposable: bool = False
+    is_disposable: bool =  False
     is_abuse_detected: bool = False
     line_status: str = ""
     sms_email: str = ""
@@ -55,21 +55,21 @@ def normalize_phone(phone: str) -> str:
 
 
 def lookup_resporg(phone: str) -> RespOrgResult:
-    """Lookup carrier using Abstract API phone validation."""
+    """Lookup carrier using IPQualityScore phone validation."""
     digits = normalize_phone(phone)
-    e164 = f"1{digits}"
+    e164 = f"+1{digits}"
     logger.debug(f"lookup_resporg: normalized E.164 = {e164}")
 
-    api_key = os.getenv("ABSTRACT_API_KEY")
-    logger.error(f"ABSTRACT API KEY LOADED : {repr(api_key)}")
+    api_key = os.getenv("IPQS_API_KEY")
+    logger.error(f"IPQS API KEY LOADED : {repr(api_key)}")
     if not api_key:
-        logger.error("ABSTRACT_API_KEY is not set in environment.")
+        logger.error("IPQS_API_KEY is not set in environment.")
         return RespOrgResult("", "Unknown Carrier", "", "", False)
 
-    url = "https://phoneintelligence.abstractapi.com/v1/"
+    url = f"https://www.ipqualityscore.com/api/json/phone/{api_key}/{e164}"
     params = {
-        "api_key": api_key,
-        "phone": e164,
+        "strictness": 0,
+        "allow_prepaid": True,
     }
 
     try:
@@ -77,49 +77,28 @@ def lookup_resporg(phone: str) -> RespOrgResult:
         logger.debug(f"HTTP Status: {response.status_code}")
 
         if response.status_code == 401:
-            logger.error("Abstract API returned 401 — check your ABSTRACT_API_KEY.")
+            logger.error("IPQS returned 401 — check your IPQS_API_KEY.")
             return RespOrgResult("", "Auth Failed", "", "", False)
-
-        if response.status_code == 422:
-            logger.error(f"Abstract API returned 422 — invalid phone number: {e164}")
-            return RespOrgResult("", "Invalid Number", "", "", False)
 
         response.raise_for_status()
         data = response.json()
         logger.error(f"FULL API RESPONSE: {response.text}")
 
-        phone_carrier = data.get("phone_carrier", {})
-        phone_validation = data.get("phone_validation", {})
-        phone_location = data.get("phone_location", {})
-        phone_format = data.get("phone_format", {})
-        phone_risk = data.get("phone_risk", {})
-        phone_messaging = data.get("phone_messaging", {})
-
-        carrier = phone_carrier.get("name", "Unknown Carrier")
-        line_type = phone_carrier.get("line_type", "")
-        mcc = str(phone_carrier.get("mcc", ""))
-        mnc = str(phone_carrier.get("mnc", ""))
-
-        is_valid = phone_validation.get("is_valid", False)
-        line_status = phone_validation.get("line_status", "")
-        is_voip = phone_validation.get("is_voip", False)
-
-        country = phone_location.get("country_name", "")
-        region = phone_location.get("region", "")
-        city = phone_location.get("city", "")
-        timezone = phone_location.get("timezone", "")
-
-        international_format = phone_format.get("international", "")
-        national_format = phone_format.get("national", "")
-
-        risk_level = phone_risk.get("risk_level", "")
-        is_disposable = phone_risk.get("is_disposable", False)
-        is_abuse_detected = phone_risk.get("is_abuse_detected", False)
-
-        sms_domain = phone_messaging.get("sms_domain", "")
-        sms_email = phone_messaging.get("sms_email", "")
-
+        carrier = data.get("carrier", "Unknown Carrier")
+        line_type = data.get("line_type", "")
+        is_valid = data.get("valid", False)
+        is_voip = data.get("VOIP", False)
         is_toll_free = line_type.lower() in ("toll_free", "tollfree") if line_type else False
+        country = data.get("country", "")
+        region = data.get("region", "")
+        city = data.get("city", "")
+        timezone = data.get("timezone", "")
+        international_format = data.get("formatted", "")
+        national_format = data.get("local_format", "")
+        risk_level = "high" if data.get("fraud_score", 0) >= 75 else "medium" if data.get("fraud_score", 0) >= 50 else "low"
+        is_disposable = data.get("prepaid", False)
+        is_abuse_detected = data.get("recent_abuse", False)
+        line_status = "active" if data.get("active", False) else "inactive"
 
         logger.info(
             f"Result for {e164}: carrier={carrier!r}, "
@@ -145,14 +124,14 @@ def lookup_resporg(phone: str) -> RespOrgResult:
             is_disposable=is_disposable,
             is_abuse_detected=is_abuse_detected,
             line_status=line_status,
-            sms_email=sms_email,
-            sms_domain=sms_domain,
-            mcc=mcc,
-            mnc=mnc,
+            sms_email="",
+            sms_domain="",
+            mcc="",
+            mnc="",
         )
 
     except req.exceptions.Timeout:
-        logger.error(f"Abstract API request timed out after {TIMEOUT_ABSTRACT}s for {e164}")
+        logger.error(f"IPQS request timed out for {e164}")
         return RespOrgResult("", "Timeout", "", "", False)
 
     except req.exceptions.ConnectionError as e:
@@ -160,13 +139,12 @@ def lookup_resporg(phone: str) -> RespOrgResult:
         return RespOrgResult("", "Connection Error", "", "", False)
 
     except req.exceptions.HTTPError as e:
-        logger.error(f"Abstract API HTTP error: {e}")
+        logger.error(f"IPQS HTTP error: {e}")
         return RespOrgResult("", "HTTP Error", "", "", False)
 
     except Exception as e:
-        logger.exception(f"Unexpected error during Abstract API lookup for {e164}: {e}")
+        logger.exception(f"Unexpected error during IPQS lookup for {e164}: {e}")
         return RespOrgResult("", "Unknown Carrier", "", "", False)
-
 
 def extract_phone_from_url(url: str) -> str:
     """Extract toll-free number from URL using Playwright."""
@@ -255,15 +233,100 @@ def extract_campaign_data(url: str) -> dict:
         params = parse_qs(parsed.query)
 
         campaign_id_keys = [
+            # Campaign IDs
             "bcid", "cid", "campaign_id", "gad_campaignid", "campaignid",
-            "utm_campaign", "campaign", "click_id", "clickid", "aff_id",
-            "subid", "sub_id", "ref", "source", "track", "tracking",
+            "utm_id", "utm_campaign", "campaign", "camp", "camp_id",
+            
+            # Click IDs
+            "click_id", "clickid", "click", "clid", "cclid",
+            
+            # Affiliate / Partner IDs
+            "aff_id", "affid", "affiliate_id", "affiliateid", "aff",
+            "partner_id", "partnerid", "partner", "pub_id", "pubid",
+            
+            # Sub IDs
+            "subid", "sub_id", "subid1", "subid2", "subid3",
+            "sub1", "sub2", "sub3", "s1", "s2", "s3",
+            
+            # Tracking
+            "ref", "source", "track", "tracking", "tracker",
+            "trk", "trck", "trkid", "trk_id", "tracking_id",
+            
+            # Event / Session
             "event", "_event", "session", "session_id", "visitor",
-            "pid", "aid", "oid", "tid", "sid", "mid", "gid",
-            "adid", "ad_id", "creative", "keyword", "matchtype",
-            "device", "placement", "network", "target", "audience",
+            "visitor_id", "visit_id", "visit",
+            
+            # Generic IDs
+            "pid", "aid", "oid", "tid", "sid", "mid", "gid", "rid", "uid",
+            "id", "lid", "bid", "did", "fid", "kid", "nid", "qid", "vid",
+            
+            # Ad IDs
+            "adid", "ad_id", "ad", "adset_id", "adsetid", "adset",
+            "creative", "creative_id", "creativeid",
+            "placement", "placement_id", "placementid",
+            
+            # Search / keyword
+            "keyword", "kw", "kwd", "matchtype", "match_type",
+            "network", "target", "audience", "audience_id",
+            
+            # Platform click IDs
             "fbclid", "gclid", "wbraid", "gbraid", "msclkid",
+            "ttclid", "twclid", "li_fat_id", "mc_cid", "mc_eid",
+            "igshid", "yclid", "vclid", "dclid", "sclid",
+            "pin_unauth_id", "epik", "qclid", "rdclid",
+            
+            # UTM
             "utm_source", "utm_medium", "utm_content", "utm_term",
+            "utm_creative", "utm_placement", "utm_network",
+            "utm_adgroup", "utm_adgroupid", "utm_adid",
+            "utm_banner", "utm_device", "utm_keyword",
+            "utm_matchtype", "utm_position", "utm_target",
+            
+            # Order / transaction
+            "order_id", "orderid", "order", "transaction_id",
+            "transactionid", "txid", "tx_id",
+            
+            # Lead / form
+            "lead_id", "leadid", "form_id", "formid",
+            "survey_id", "surveyid", "response_id",
+            
+            # Referral
+            "referral", "referral_id", "referralid", "referrer",
+            "ref_id", "refid", "invite", "invite_code",
+            "promo", "promo_code", "promocode", "coupon",
+            
+            # Landing page
+            "lpkey", "lp_key", "lp", "lp_id", "lpid",
+            "page_id", "pageid", "landing_id",
+            
+            # Azure / Microsoft
+            "msclkid", "mspid", "mspclid",
+            
+            # Google
+            "gad_source", "gad_campaignid", "gbraid", "wbraid",
+            
+            # Facebook / Meta
+            "fbid", "fb_id", "fb_click_id", "fb_campaign_id",
+            "fb_adset_id", "fb_ad_id", "fb_placement",
+            
+            # TikTok
+            "ttid", "tt_id", "tiktok_id",
+            
+            # Snapchat
+            "scid", "snap_id", "snapchat_id",
+            
+            # Email
+            "email_id", "emailid", "newsletter_id",
+            "list_id", "listid", "broadcast_id",
+            
+            # Misc
+            "token", "hash", "code", "key", "tag", "label",
+            "channel", "channel_id", "channelid",
+            "device", "device_id", "deviceid",
+            "segment", "segment_id", "segmentid",
+            "variation", "variation_id", "variationid",
+            "experiment", "experiment_id", "experimentid",
+            "test", "test_id", "testid", "ab", "ab_id",
         ]
 
         campaign_id = ""
