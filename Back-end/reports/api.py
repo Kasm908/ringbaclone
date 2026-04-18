@@ -242,6 +242,40 @@ def lookup(request, payload: LookupIn):
         campaign_data = extract_campaign_data(user_input)
         lookup_id = str(uuid.uuid4())
 
+        phone_in_url = campaign_data.get("phone_in_url", "")
+
+        if phone_in_url:
+            result = lookup_resporg(phone_in_url)
+            return {
+                "lookup_id": lookup_id,
+                "phone_number": phone_in_url,
+                "carrier_name": result.carrier_name,
+                "resporg_code": result.resporg_code,
+                "abuse_email": result.abuse_email,
+                "landing_url": user_input,
+                "is_toll_free": result.is_toll_free,
+                "campaign_id": campaign_data.get("campaign_id", ""),
+                "domain": campaign_data.get("domain", ""),
+                "scraping": False,
+                "line_type": result.line_type,
+                "is_valid": result.is_valid,
+                "is_voip": result.is_voip,
+                "country": result.country,
+                "region": result.region,
+                "city": result.city,
+                "timezone": result.timezone,
+                "international_format": result.international_format,
+                "national_format": result.national_format,
+                "risk_level": result.risk_level,
+                "is_disposable": result.is_disposable,
+                "is_abuse_detected": result.is_abuse_detected,
+                "line_status": result.line_status,
+                "sms_email": result.sms_email,
+                "sms_domain": result.sms_domain,
+                "mcc": result.mcc,
+                "mnc": result.mnc,
+            }
+
         from reports.tasks import scrape_phone_from_url
         scrape_phone_from_url.delay(user_input, lookup_id)
 

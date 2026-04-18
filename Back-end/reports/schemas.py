@@ -78,6 +78,8 @@ class LookupIn(Schema):
     input: str
     is_url: bool
 
+from typing import Optional
+
 class LookupOut(Schema):
     lookup_id: str
     phone_number: str
@@ -91,16 +93,16 @@ class LookupOut(Schema):
     scraping: bool
     line_type: str
     is_valid: bool
-    is_voip: bool
+    is_voip: Optional[bool] = False
     country: str
     region: str
     city: str
     timezone: str
-    international_format: str
-    national_format: str
+    international_format: Optional[str] = ""
+    national_format: Optional[str] = ""
     risk_level: str
     is_disposable: Optional[bool] = False
-    is_abuse_detected: bool
+    is_abuse_detected: Optional[bool] = False
     line_status: str
     sms_email: str
     sms_domain: str

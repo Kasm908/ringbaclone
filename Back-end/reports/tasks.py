@@ -107,7 +107,7 @@ def process_report_complaint(report_id: str):
         logger.error(f"Complaint failed for report {report_id}: {e}")
 
 
-@shared_task(time_limit=65, soft_time_limit=60)
+@shared_task(time_limit=120, soft_time_limit=110)
 def scrape_phone_from_url(url: str, lookup_id: str):
     from reports.services.resporg import extract_phone_from_url, lookup_resporg
     

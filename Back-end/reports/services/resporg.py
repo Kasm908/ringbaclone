@@ -148,12 +148,15 @@ def lookup_resporg(phone: str) -> RespOrgResult:
 
 def extract_phone_from_url(url: str) -> str:
     """Extract toll-free number from URL using Playwright."""
-    script = '''
+    
+    script_content = r"""
 import sys, json, re
 from playwright.sync_api import sync_playwright
 
 with open(sys.argv[1]) as f:
     url = json.load(f)["url"]
+
+TOLL_FREE_PATTERN = re.compile(r'1?[-.\s]?\(?(800|833|844|855|866|877|888)\)?[-.\s]?\d{3}[-.\s]?\d{4}')
 
 with sync_playwright() as p:
     browser = p.chromium.launch(
@@ -171,9 +174,12 @@ with sync_playwright() as p:
     )
     page = context.new_page()
     page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+    
+    phone = ""
+    
     try:
-        page.goto(url, timeout=20000, wait_until="networkidle")
-        page.wait_for_timeout(2000)
+        page.goto(url, timeout=15000, wait_until="domcontentloaded")
+        page.wait_for_timeout(5000)
 
         try:
             proceed = page.locator("text=Ignore & Proceed")
@@ -183,37 +189,83 @@ with sync_playwright() as p:
         except:
             pass
 
-        text = page.inner_text("body")
+        # 1. Check tel: links first - most reliable
+        tel_links = page.eval_on_selector_all(
+            "a[href^='tel:']",
+            "els => els.map(e => e.href)"
+        )
+        for tel in tel_links:
+            digits = re.sub(r'\D', '', tel.replace("tel:", ""))
+            if len(digits) >= 10:
+                prefix = digits[-10:][:3]
+                if prefix in ("800", "833", "844", "855", "866", "877", "888"):
+                    phone = digits
+                    break
+
+        # 2. Check page HTML for tel: patterns
+        if not phone:
+            html = page.content()
+            tel_matches = re.findall(r'tel:[+]?(1?[-.\s]?\(?(800|833|844|855|866|877|888)\)?[-.\s]?\d{3}[-.\s]?\d{4})', html)
+            if tel_matches:
+                phone = re.sub(r'\D', '', tel_matches[0][0])
+
+        # 3. Check JavaScript variables
+        if not phone:
+                    js_phone = page.evaluate(
+                        "() => {"
+                        "const pattern = /(1?(800|833|844|855|866|877|888)[\\s.-]?\\d{3}[\\s.-]?\\d{4})/;"
+                        "const text = document.documentElement.innerHTML;"
+                        "const match = pattern.exec(text);"
+                        "return match ? match[0] : null;"
+                        "}"
+                    )
+                    if js_phone:
+                        phone = re.sub(r'\D', '', js_phone)
+
+        # 4. Check body text
+        if not phone:
+            text = page.inner_text("body")
+            full = TOLL_FREE_PATTERN.search(text)
+            if full:
+                phone = re.sub(r'\D', '', full.group())
+
+        # 5. Check meta tags
+        if not phone:
+                    meta_content = page.evaluate(
+                        "() => {"
+                        "const metas = document.querySelectorAll('meta');"
+                        "return Array.from(metas).map(m => m.getAttribute('content') || '').join(' ');"
+                        "}"
+                    )
+                    full = TOLL_FREE_PATTERN.search(meta_content or "")
+                    if full:
+                        phone = re.sub(r'\D', '', full.group())
+
     except Exception as e:
-        text = ""
+        pass
+    
     browser.close()
+    print(phone)
+"""
 
-matches = re.findall(
-    r'1?[-.\\s]?\\(?(800|833|844|855|866|877|888)\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}',
-    text
-)
-if matches:
-    full = re.search(
-        r'1?[-.\\s]?\\(?(800|833|844|855|866|877|888)\\)?[-.\\s]?\\d{3}[-.\\s]?\\d{4}',
-        text
-    )
-    print(re.sub(r'\\D', '', full.group()) if full else "")
-else:
-    print("")
-'''
-
+    script_file = None
+    tmp_path = None
     try:
+        # Write script to temp .py file — fixes all escape sequence issues
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False, encoding='utf-8') as sf:
+            sf.write(script_content)
+            script_file = sf.name
+
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             json.dump({"url": url}, f)
             tmp_path = f.name
 
         result = subprocess.run(
-            [sys.executable, "-c", script, tmp_path],
+            [sys.executable, script_file, tmp_path],
             capture_output=True,
             text=True,
             timeout=TIMEOUT_PLAYWRIGHT,
         )
-        os.unlink(tmp_path)
 
         phone = result.stdout.strip()
         if phone:
@@ -221,10 +273,21 @@ else:
         if result.stderr:
             logger.error(f"Playwright subprocess error: {result.stderr}")
         return ""
+
+    except subprocess.TimeoutExpired:
+        logger.error(f"Playwright extraction timed out for {url}")
+        return ""
     except Exception as e:
         logger.error(f"Playwright extraction failed for {url}: {e}")
         return ""
-
+    finally:
+        if script_file and os.path.exists(script_file):
+            os.unlink(script_file)
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
 
 def extract_campaign_data(url: str) -> dict:
     """Extract campaign ID and other tracking params from URL."""
@@ -347,6 +410,17 @@ def extract_campaign_data(url: str) -> dict:
         phone_match = re.search(r'(1?)([2-9]\d{2})(\d{3})(\d{4})', url_text)
         if phone_match:
             phone_in_url = phone_match.group(0)
+
+        # Check all param values for phone numbers
+        if not phone_in_url:
+            for key, values in params.items():
+                value = values[0]
+                digits = re.sub(r'\D', '', value)
+                if len(digits) >= 10:
+                    prefix = digits[-10:][:3]
+                    if prefix in ("800", "833", "844", "855", "866", "877", "888"):
+                        phone_in_url = digits
+                        break
 
         return {
             "campaign_id": campaign_id,
