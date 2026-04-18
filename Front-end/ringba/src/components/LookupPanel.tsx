@@ -143,7 +143,9 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
 
   const listenForPhoneNumber = (lookupId: string) => {
     const token = localStorage.getItem("access_token");
-    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/reports/?token=${token}`);
+    const wsBase = import.meta.env.VITE_WS_URL || "wss://scam-slayer-api.onrender.com";
+    const ws = new WebSocket(`${wsBase}/ws/reports/?token=${token}`);
+    // const ws = new WebSocket(`ws://127.0.0.1:8000/ws/reports/?token=${token}`);
     wsRef.current = ws;
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
