@@ -18,7 +18,7 @@ services:
       - key: REDIS_URL
         fromService:
           name: fraudhunter-redis
-          type: redis
+          type: psc
           property: connectionString
       - key: ALLOWED_HOSTS
         value: "fraudhunter-api.onrender.com,api.fraudhunter.net"
@@ -26,14 +26,14 @@ services:
         value: "https://www.fraudhunter.net,https://fraudhunter.net,https://fraudhunter-frontend.vercel.app"
       - key: SCAM_SLAYER_API_KEY
         generateValue: true
-      - key: RESEND_API_KEY
-        value: "re_3Sk2U6s8_B7zu3UMbrmfYqwKdZuwSUgzL"
       - key: TWILIO_ACCOUNT_SID
-        value: "AC739a36eff02d8e259d2e47785a251193"
+        sync: false
       - key: TWILIO_AUTH_TOKEN
-        value: "39463ef27e2c27818c893342ec39d8b8"
+        sync: false
       - key: IPQS_API_KEY
-        value: "U6LXiYA7S12gnAlghSmO3jBSXxWxwWK9"
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
       - key: EMAIL_BACKEND
         value: "django.core.mail.backends.smtp.EmailBackend"
       - key: EMAIL_HOST
@@ -47,11 +47,13 @@ services:
       - key: EMAIL_HOST_USER
         value: "resend"
       - key: EMAIL_HOST_PASSWORD
-        value: "re_3Sk2U6s8_B7zu3UMbrmfYqwKdZuwSUgzL"
+        sync: false
       - key: DEFAULT_FROM_EMAIL
         value: "FraudHunter <reports@fraudhunter.net>"
+      - key: RESPORG_BACKEND
+        value: "local"
 
-  - type: redis
+  - type: psc
     name: fraudhunter-redis
     plan: starter
 
