@@ -9,8 +9,6 @@ RUN apt-get update && apt-get install -y tesseract-ocr
 
 COPY . .
 
-RUN playwright install chromium
-
 EXPOSE 10000
 
 CMD python manage.py migrate && python manage.py collectstatic --no-input && daphne -p $PORT -b 0.0.0.0 core.asgi:application
