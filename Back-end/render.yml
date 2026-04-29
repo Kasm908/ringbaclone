@@ -1,9 +1,11 @@
 services:
   - type: web
-    name: scam-slayer-api
+    name: fraudhunter-api
     env: python
+    rootDir: Back-end
     buildCommand: "./build.sh"
     startCommand: "daphne -p $PORT -b 0.0.0.0 core.asgi:application"
+    plan: standard
     envVars:
       - key: SECRET_KEY
         generateValue: true
@@ -11,26 +13,48 @@ services:
         value: "False"
       - key: DATABASE_URL
         fromDatabase:
-          name: scam-slayer-db
+          name: fraudhunter-db
           property: connectionString
       - key: REDIS_URL
         fromService:
-          name: scam-slayer-redis
+          name: fraudhunter-redis
           type: redis
           property: connectionString
       - key: ALLOWED_HOSTS
-        value: ".onrender.com"
+        value: "fraudhunter-api.onrender.com,api.fraudhunter.net"
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://jumahans.github.io"
+        value: "https://www.fraudhunter.net,https://fraudhunter.net,https://fraudhunter-frontend.vercel.app"
       - key: SCAM_SLAYER_API_KEY
         generateValue: true
-      - key: RESPORG_BACKEND
-        value: "local"
+      - key: RESEND_API_KEY
+        value: "re_3Sk2U6s8_B7zu3UMbrmfYqwKdZuwSUgzL"
+      - key: TWILIO_ACCOUNT_SID
+        value: "AC739a36eff02d8e259d2e47785a251193"
+      - key: TWILIO_AUTH_TOKEN
+        value: "39463ef27e2c27818c893342ec39d8b8"
+      - key: IPQS_API_KEY
+        value: "U6LXiYA7S12gnAlghSmO3jBSXxWxwWK9"
+      - key: EMAIL_BACKEND
+        value: "django.core.mail.backends.smtp.EmailBackend"
+      - key: EMAIL_HOST
+        value: "smtp.resend.com"
+      - key: EMAIL_PORT
+        value: "465"
+      - key: EMAIL_USE_SSL
+        value: "True"
+      - key: EMAIL_USE_TLS
+        value: "False"
+      - key: EMAIL_HOST_USER
+        value: "resend"
+      - key: EMAIL_HOST_PASSWORD
+        value: "re_3Sk2U6s8_B7zu3UMbrmfYqwKdZuwSUgzL"
+      - key: DEFAULT_FROM_EMAIL
+        value: "FraudHunter <reports@fraudhunter.net>"
 
   - type: redis
-    name: scam-slayer-redis
-    plan: free
+    name: fraudhunter-redis
+    plan: starter
 
 databases:
-  - name: scam-slayer-db
+  - name: fraudhunter-db
     plan: free

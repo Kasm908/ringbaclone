@@ -94,16 +94,26 @@ STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# CORS
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:5173",
-#     "http://localhost:5174",
-#     "http://127.0.0.1:5173",
-#     "http://127.0.0.1:5174",
-#     "https://jumahans.github.io/",
-# ]
+# # CORS
+# # CORS_ALLOWED_ORIGINS = [
+# #     "http://localhost:5173",
+# #     "http://localhost:5174",
+# #     "http://127.0.0.1:5173",
+# #     "http://127.0.0.1:5174",
+# #     "https://jumahans.github.io/",
+# # ]
+# CORS_ALLOW_CREDENTIALS = True
+# CORS_ALLOW_ALL_ORIGINS = True
+
+
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWED_ORIGINS = [
+    "https://www.fraudhunter.net",
+    "https://fraudhunter.net",
+    "https://fraudhunter-frontend.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:5174",
+]
 
 # Email
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
