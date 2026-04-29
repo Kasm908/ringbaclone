@@ -125,3 +125,4 @@ uvicorn[standard]
 pytesseract
 Pillow
 playwright
+tesseract
