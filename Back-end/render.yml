@@ -59,4 +59,4 @@ services:
 
 databases:
   - name: fraudhunter-db
-    plan: free
+    plan: free        
