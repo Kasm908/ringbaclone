@@ -84,4 +84,20 @@ export const reportsApi = {
       const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
       window.open(`${BASE}/api/v1/reports/export?token=${token}`, "_blank");
   },
+  downloadScreenshot: async (reportId: string, type: "ftc" | "ic3"): Promise<void> => {
+  const res = await client.get(`/v1/reports/${reportId}/screenshot`, {
+    params: { type },
+    responseType: "blob",
+  });
+
+  const blob = new Blob([res.data], { type: "image/png" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${type}_complaint_${reportId}.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+},
 };
