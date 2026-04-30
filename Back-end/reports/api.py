@@ -386,8 +386,8 @@ def get_ftc_screenshot(request, report_id: UUID):
     return FileResponse(open(report.ftc_screenshot, 'rb'), content_type='image/png')
 
 
-@router.get("/reports/{report_id}/screenshots/ic3", auth=auth, tags=["Screenshots"])
-def get_ic3_screenshot(request, report_id: UUID):
+# @router.get("/reports/{report_id}/screenshots/ic3", auth=auth, tags=["Screenshots"])
+# def get_ic3_screenshot(request, report_id: UUID):
     """Serve IC3 submission screenshot."""
     report = get_object_or_404(ScamReport, id=report_id)
     
@@ -396,6 +396,13 @@ def get_ic3_screenshot(request, report_id: UUID):
     
     return FileResponse(open(report.ic3_screenshot, 'rb'), content_type='image/png')
 
+@router.get("/reports/{report_id}/screenshots/ic3", auth=auth, tags=["Screenshots"])
+def get_ic3_screenshot(request, report_id: UUID):
+    report = get_object_or_404(ScamReport, id=report_id)
+    if not report.ic3_screenshot_b64:
+        raise HttpError(404, "IC3 screenshot not found")
+    import base64
+    return HttpResponse(base64.b64decode(report.ic3_screenshot_b64), content_type='image/png')
 
 @router.get("/reports/{report_id}/screenshots", auth=auth, tags=["Screenshots"])
 def get_all_screenshots(request, report_id: UUID):
@@ -408,9 +415,13 @@ def get_all_screenshots(request, report_id: UUID):
             "available": bool(report.ftc_screenshot and os.path.exists(report.ftc_screenshot)),
             "url": f"/api/v1/reports/{report_id}/screenshots/ftc" if report.ftc_screenshot else None,
         },
+        # "ic3": {
+        #     "available": bool(report.ic3_screenshot and os.path.exists(report.ic3_screenshot)),
+        #     "url": f"/api/v1/reports/{report_id}/screenshots/ic3" if report.ic3_screenshot else None,
+        # },
         "ic3": {
-            "available": bool(report.ic3_screenshot and os.path.exists(report.ic3_screenshot)),
-            "url": f"/api/v1/reports/{report_id}/screenshots/ic3" if report.ic3_screenshot else None,
+            "available": bool(report.ic3_screenshot_b64),
+            "url": f"/api/v1/reports/{report_id}/screenshots/ic3" if report.ic3_screenshot_b64 else None,
         },
     }
     
@@ -510,22 +521,38 @@ def google_ad_library(request, domain: str):
 from django.http import HttpResponse
 from reports.models import ScamReport  # adjust import to your model
 
+# @router.get("/v1/reports/{report_id}/screenshot")
+# def get_screenshot(request, report_id: str, type: str = "ftc"):
+#     report = ScamReport.objects.get(id=report_id)
+    
+#     # Choose path based on type
+#     if type == "ic3":
+#         # path = report.ic3_screenshot_path  
+#         path = report.ic3_screenshot_path # adjust to your field name
+#     else:
+#         path = report.ftc_screenshot_path  # adjust to your field name
+
+#     if not path or not os.path.exists(path):
+#         return {"error": "Screenshot not found"}, 404
+
+#     with open(path, "rb") as f:
+#         return HttpResponse(f.read(), content_type="image/png")
+
+
 @router.get("/v1/reports/{report_id}/screenshot")
 def get_screenshot(request, report_id: str, type: str = "ftc"):
     report = ScamReport.objects.get(id=report_id)
     
-    # Choose path based on type
     if type == "ic3":
-        path = report.ic3_screenshot_path  # adjust to your field name
+        path = report.ic3_screenshot_path
     else:
-        path = report.ftc_screenshot_path  # adjust to your field name
+        path = report.ftc_screenshot_path
 
     if not path or not os.path.exists(path):
         return {"error": "Screenshot not found"}, 404
 
     with open(path, "rb") as f:
         return HttpResponse(f.read(), content_type="image/png")
-
 
 from django.http import HttpResponse
 import csv
@@ -564,16 +591,35 @@ def export_reports_csv(request):
 
 
 
+# @router.get("/reports/{report_id}/screenshot", auth=auth, tags=["Screenshots"])
+# def get_screenshot_by_type(request, report_id: UUID, type: str = "ftc"):
+#     report = get_object_or_404(ScamReport, id=report_id)
+    
+#     if type == "ftc":
+#         path = report.ftc_screenshot
+#     else:
+#         path = report.ic3_screenshot
+
+#     if not path or not os.path.exists(path):
+#         raise HttpError(404, "Screenshot not found")
+
+#     return FileResponse(open(path, 'rb'), content_type='image/png')
+
+
+
+
 @router.get("/reports/{report_id}/screenshot", auth=auth, tags=["Screenshots"])
 def get_screenshot_by_type(request, report_id: UUID, type: str = "ftc"):
     report = get_object_or_404(ScamReport, id=report_id)
     
-    if type == "ftc":
-        path = report.ftc_screenshot
-    else:
-        path = report.ic3_screenshot
-
+    if type == "ic3":
+        if not report.ic3_screenshot_b64:
+            raise HttpError(404, "Screenshot not found")
+        import base64
+        return HttpResponse(base64.b64decode(report.ic3_screenshot_b64), content_type='image/png')
+    
+    # FTC stays the same — reads from file
+    path = report.ftc_screenshot
     if not path or not os.path.exists(path):
         raise HttpError(404, "Screenshot not found")
-
     return FileResponse(open(path, 'rb'), content_type='image/png')

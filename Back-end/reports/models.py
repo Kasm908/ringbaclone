@@ -39,6 +39,7 @@ class ScamReport(models.Model):
     notes = models.TextField(blank=True)
     ftc_screenshot = models.CharField(max_length=500, blank=True, null=True, default="")
     ic3_screenshot = models.CharField(max_length=500, blank=True, null=True, default="")
+    ic3_screenshot_b64 = models.TextField(blank=True, null=True, default="")
     submitted_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.CASCADE, related_name="reports")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
