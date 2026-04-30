@@ -157,4 +157,4 @@ def scrape_800forall_cnam(phone_number: str, max_retries: int = 5) -> str:
 
 logging.basicConfig(level=logging.INFO)
 result = scrape_800forall_cnam('8557141574')
-print('CNAM RESULT:', repr(result))
+print('CNAM RESULT:', repr(result))    
