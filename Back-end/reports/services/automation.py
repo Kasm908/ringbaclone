@@ -1698,11 +1698,43 @@ def submit_ic3_complaint(
             ic3_safe_set(sb, "Victim_ZipCode",  reporter_zip_str)
             ic3_safe_set(sb, "Victim_Phone",    reporter_phone or "")
             ic3_safe_set(sb, "Victim_Email",    reporter_email or "")
+            # ic3_js_click(sb, "Victim_IsBusiness_no")
+
+            # ic3_simulate_human_mouse(sb)
+            # ic3_click_next(sb, next_step_element="input#MoneySent_no")
+            # print("After Step 2:", sb.get_current_url())
+
             ic3_js_click(sb, "Victim_IsBusiness_no")
+
+            # Debug — check what fields are actually filled
+            victim_name = sb.driver.execute_script("return document.getElementById('Victim_Name')?.value || 'EMPTY';")
+            victim_city = sb.driver.execute_script("return document.getElementById('Victim_City')?.value || 'EMPTY';")
+            victim_state = sb.driver.execute_script("return document.getElementById('Victim_State')?.value || 'EMPTY';")
+            victim_zip = sb.driver.execute_script("return document.getElementById('Victim_ZipCode')?.value || 'EMPTY';")
+            victim_country = sb.driver.execute_script("return document.getElementById('Victim_Country')?.value || 'EMPTY';")
+            victim_age = sb.driver.execute_script("return document.getElementById('Victim_AgeRange')?.value || 'EMPTY';")
+            print(f"Victim_Name={victim_name}, City={victim_city}, State={victim_state}, Zip={victim_zip}, Country={victim_country}, Age={victim_age}")
+
+            # Force Angular validation
+            sb.driver.execute_script("""
+                document.querySelectorAll('input, select').forEach(function(el) {
+                    el.dispatchEvent(new Event('blur', {bubbles: true}));
+                    el.dispatchEvent(new Event('change', {bubbles: true}));
+                });
+            """)
+            ic3_human_delay(2000, 3000)
+
+            # Check validation errors
+            error = sb.driver.execute_script(
+                "(function() {"
+                "  var err = document.querySelector('.usa-alert--error, .field-validation-error, .validation-summary-errors, .usa-error-message');"
+                "  return err ? err.textContent.trim() : null;"
+                "})();"
+            )
+            print(f"Validation error before Step 2 Next: {error}")
 
             ic3_simulate_human_mouse(sb)
             ic3_click_next(sb, next_step_element="input#MoneySent_no")
-            print("After Step 2:", sb.get_current_url())
 
             # Step 3: Money sent
             sb.wait_for_element_present("input#MoneySent_no", timeout=20)
