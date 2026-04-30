@@ -375,13 +375,10 @@ def submit_to_authorities(report_id: str):
     from reports.services.automation import (
         submit_ftc_complaint,
         submit_ic3_complaint,
-        submit_microsoft_fraud,
-        submit_google_safebrowsing,
     )
 
     try:
         report = ScamReport.objects.get(id=report_id)
-        brand_lower = (report.brand or "").lower()
 
         def run_ftc():
             try:
@@ -424,35 +421,16 @@ def submit_to_authorities(report_id: str):
                 )
                 if screenshot:
                     report.ic3_screenshot = screenshot
+                if screenshot_b64:
+                    report.ic3_screenshot_b64 = screenshot_b64 
                     report.save()
                 ReportLog.objects.create(report=report, action="IC3_SUBMISSION", detail=message, success=success)
             except Exception as e:
                 logger.error(f"IC3 failed: {e}", exc_info=True)
 
-        def run_brand():
-            try:
-                if "microsoft" in brand_lower or "windows" in brand_lower:
-                    success, message = submit_microsoft_fraud(report.phone_number, report.landing_url or "")
-                    ReportLog.objects.create(report=report, action="MICROSOFT_FRAUD_REPORT", detail=message, success=success)
-                elif "amazon" in brand_lower or "aws" in brand_lower:
-                    success, message = submit_microsoft_fraud(report.phone_number, report.landing_url or "")
-                    ReportLog.objects.create(report=report, action="AMAZON_FRAUD_REPORT", detail=message, success=success)
-            except Exception as e:
-                logger.error(f"Brand fraud failed: {e}", exc_info=True)
-
-        def run_google():
-            try:
-                if report.landing_url:
-                    success, message = submit_google_safebrowsing(report.landing_url)
-                    ReportLog.objects.create(report=report, action="GOOGLE_SAFEBROWSING", detail=message, success=success)
-            except Exception as e:
-                logger.error(f"Google failed: {e}", exc_info=True)
-
         for t in [
             threading.Thread(target=run_ftc, daemon=True),
             threading.Thread(target=run_ic3, daemon=True),
-            threading.Thread(target=run_brand, daemon=True),
-            threading.Thread(target=run_google, daemon=True),
         ]:
             t.start()
 
