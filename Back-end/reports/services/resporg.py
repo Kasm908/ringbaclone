@@ -3171,6 +3171,7 @@ if p:
 with sync_playwright() as pw:
     browser = pw.chromium.launch(
         headless=True,
+        executable_path="/usr/bin/chromium",
         args=[
             "--disable-blink-features=AutomationControlled",
             "--no-sandbox",

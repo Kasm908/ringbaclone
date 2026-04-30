@@ -5,6 +5,7 @@ WORKDIR /app
 ENV SB_SKIP_BROWSER_INSTALL=1
 ENV SELENIUMBASE_NO_BROWSER_INSTALL=1
 ENV PYTHONUNBUFFERED=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin
 
 # Install Chrome + tesseract
 RUN apt-get update && apt-get install -y \
