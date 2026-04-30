@@ -1079,7 +1079,48 @@ def ic3_safe_set(sb, element_id, value):
 #     ic3_human_delay(5000, 8000)  # Wait longer # Wait longer for navigation
 
 
-def ic3_click_next(sb, timeout=30):
+# def ic3_click_next(sb, timeout=30):
+#     ic3_simulate_human_mouse(sb)
+#     ic3_human_delay(600, 1000)
+
+#     try:
+#         btn = sb.driver.find_element("css selector", "button.usa-button.next")
+#         sb.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
+#         ic3_human_delay(300, 500)
+#         btn.click()
+#         print("Next clicked (real)")
+#     except Exception as e:
+#         print(f"Real click failed: {e}, trying JS fallback")
+#         sb.driver.execute_script("""
+#             (function() {
+#                 var btn = document.querySelector('button.usa-button.next');
+#                 if (btn) {
+#                     btn.focus();
+#                     btn.click();
+#                 }
+#             })();
+#         """)
+#         print("Next clicked (JS fallback)")
+
+#     ic3_human_delay(3000, 5000)
+
+#     # Check for any validation errors
+#     error = sb.driver.execute_script(
+#         "(function() {"
+#         "  var err = document.querySelector('.usa-alert--error, .field-validation-error, .validation-summary-errors');"
+#         "  return err ? err.textContent.trim() : null;"
+#         "})();"
+#     )
+#     if error:
+#         raise Exception(f"Form validation error: {error}")
+
+#     current_url = sb.driver.execute_script("return window.location.href;")
+#     print(f"  After Next: {current_url}")
+#     return current_url
+
+
+
+def ic3_click_next(sb, next_step_element=None, timeout=30):
     ic3_simulate_human_mouse(sb)
     ic3_human_delay(600, 1000)
 
@@ -1087,36 +1128,27 @@ def ic3_click_next(sb, timeout=30):
         btn = sb.driver.find_element("css selector", "button.usa-button.next")
         sb.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
         ic3_human_delay(300, 500)
-        btn.click()
-        print("Next clicked (real)")
+        sb.driver.execute_script("arguments[0].click();", btn)
+        print("Next clicked")
     except Exception as e:
-        print(f"Real click failed: {e}, trying JS fallback")
-        sb.driver.execute_script("""
-            (function() {
-                var btn = document.querySelector('button.usa-button.next');
-                if (btn) {
-                    btn.focus();
-                    btn.click();
-                }
-            })();
-        """)
-        print("Next clicked (JS fallback)")
+        print(f"Next click failed: {e}")
+        return
 
-    ic3_human_delay(3000, 5000)
+    # Wait for next step element to appear instead of URL change
+    if next_step_element:
+        for _ in range(timeout * 2):
+            try:
+                el = sb.driver.find_element("css selector", next_step_element)
+                if el.is_displayed():
+                    print(f"Next step loaded: {next_step_element}")
+                    return
+            except Exception:
+                pass
+            time.sleep(0.5)
+        print(f"Warning: {next_step_element} not found after {timeout}s")
+    else:
+        ic3_human_delay(3000, 5000)
 
-    # Check for any validation errors
-    error = sb.driver.execute_script(
-        "(function() {"
-        "  var err = document.querySelector('.usa-alert--error, .field-validation-error, .validation-summary-errors');"
-        "  return err ? err.textContent.trim() : null;"
-        "})();"
-    )
-    if error:
-        raise Exception(f"Form validation error: {error}")
-
-    current_url = sb.driver.execute_script("return window.location.href;")
-    print(f"  After Next: {current_url}")
-    return current_url
 
 # ── Main IC3 function ─────────────────────────────────────────────────────────
 
@@ -1608,7 +1640,7 @@ def submit_ic3_complaint(
             print(f"Complainant_Name value = {name_val}")
 
             ic3_simulate_human_mouse(sb)
-            ic3_click_next(sb)
+            ic3_click_next(sb, next_step_element="input#Victim_Name")
             print("After Step 1:", sb.get_current_url())
 
             # Step 2: Victim info
@@ -1629,7 +1661,7 @@ def submit_ic3_complaint(
             ic3_js_click(sb, "Victim_IsBusiness_no")
 
             ic3_simulate_human_mouse(sb)
-            ic3_click_next(sb)
+            ic3_click_next(sb, next_step_element="input#MoneySent_no")
             print("After Step 2:", sb.get_current_url())
 
             # Step 3: Money sent
@@ -1638,7 +1670,7 @@ def submit_ic3_complaint(
             ic3_js_click(sb, "MoneySent_no")
             ic3_human_delay(500, 1000)
             ic3_simulate_human_mouse(sb)
-            ic3_click_next(sb)
+            ic3_click_next(sb, next_step_element="input#Subjects_0__Name")
             print("After Step 3:", sb.get_current_url())
 
             # Step 4: Subject info
@@ -1667,7 +1699,7 @@ def submit_ic3_complaint(
             ic3_safe_set(sb, "Subjects_0__IPAddress","192.168.1.1")
 
             ic3_simulate_human_mouse(sb)
-            ic3_click_next(sb)
+            ic3_click_next(sb, next_step_element="textarea#IncidentDescription")
             print("After Step 4:", sb.get_current_url())
 
             # Step 5: Incident description
@@ -1689,7 +1721,7 @@ def submit_ic3_complaint(
             )
             ic3_human_delay(500, 1000)
             ic3_simulate_human_mouse(sb)
-            ic3_click_next(sb)
+            ic3_click_next(sb, next_step_element="input#ComplaintUpdate_no")
             print("After Step 5:", sb.get_current_url())
 
             # Step 6: Complaint update
@@ -1698,7 +1730,7 @@ def submit_ic3_complaint(
             ic3_js_click(sb, "ComplaintUpdate_no")
             ic3_human_delay(500, 1000)
             ic3_simulate_human_mouse(sb)
-            ic3_click_next(sb)
+            ic3_click_next(sb, next_step_element="input#DigitalSignature")
             print("After Step 6:", sb.get_current_url())
 
             # Step 7: Digital signature and submit
