@@ -1835,7 +1835,7 @@ def submit_ic3_complaint(
 
     except Exception as e:
         logger.error(f"IC3 submission failed: {e}")
-        return (False, str(e), None)
+        return (False, str(e), None, None)
 
 def submit_microsoft_fraud(
     phone_number: str,

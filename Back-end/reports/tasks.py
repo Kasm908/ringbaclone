@@ -385,7 +385,7 @@ def submit_to_authorities(report_id: str):
 
         def run_ftc():
             try:
-                success, message, screenshot = submit_ftc_complaint(
+                success, message, screenshot, screenshot_b64 = submit_ftc_complaint(
                     phone_number=report.phone_number,
                     brand=report.brand or "Unknown",
                     landing_url=report.landing_url or "",
@@ -409,7 +409,7 @@ def submit_to_authorities(report_id: str):
 
         def run_ic3():
             try:
-                success, message, screenshot = submit_ic3_complaint(
+                success, message, screenshot, screenshot_b64 = submit_ic3_complaint(
                     phone_number=report.phone_number,
                     brand=report.brand or "Unknown",
                     landing_url=report.landing_url or "",
@@ -435,7 +435,7 @@ def submit_to_authorities(report_id: str):
                     success, message = submit_microsoft_fraud(report.phone_number, report.landing_url or "")
                     ReportLog.objects.create(report=report, action="MICROSOFT_FRAUD_REPORT", detail=message, success=success)
                 elif "amazon" in brand_lower or "aws" in brand_lower:
-                    success, message = submit_amazon_fraud(report.phone_number, report.landing_url or "")
+                    success, message = submit_microsoft_fraud(report.phone_number, report.landing_url or "")
                     ReportLog.objects.create(report=report, action="AMAZON_FRAUD_REPORT", detail=message, success=success)
             except Exception as e:
                 logger.error(f"Brand fraud failed: {e}", exc_info=True)

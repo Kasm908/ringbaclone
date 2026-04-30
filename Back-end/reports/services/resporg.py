@@ -3038,14 +3038,35 @@ def clean_phone(raw):
         return digits
     return None
 
-# def find_phone(text):
-#     if not text:
-#         return ""
-#     for match in TOLL_FREE_PATTERN.finditer(text):
-#         c = clean_phone(match.group())
-#         if c:
-#             return c
-#     return ""
+def find_phone(text):
+    if not text:
+        return ""
+    # Pass 1 — primary regex
+    for match in TOLL_FREE_PATTERN.finditer(text):
+        c = clean_phone(match.group())
+        if c:
+            return c
+    # Pass 2 — strip HTML then retry
+    stripped = re.sub(r'<[^>]+>', ' ', text)
+    for match in TOLL_FREE_PATTERN.finditer(stripped):
+        c = clean_phone(match.group())
+        if c:
+            return c
+    # Pass 3 — brute force digits
+    digits_only = re.sub(r'\D', '', stripped)
+    for prefix in TOLL_FREE_PREFIXES:
+        idx = 0
+        while True:
+            idx = digits_only.find(prefix, idx)
+            if idx == -1:
+                break
+            start = idx - 1 if idx > 0 and digits_only[idx-1] == '1' else idx
+            block = digits_only[start:start + (11 if start == idx - 1 else 10)]
+            c = clean_phone(block)
+            if c:
+                return c
+            idx += 1
+    return """
 
 
 
