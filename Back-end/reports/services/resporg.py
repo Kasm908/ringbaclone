@@ -2893,14 +2893,6 @@ def extract_campaign_data(url: str) -> dict:
 
 
 
-"""
-phone_extractor.py
-------------------
-Universal toll-free phone number extractor.
-Extracts from: URL, JSON-LD/schema.org, tel: links, page text, iframes.
-Handles: consent banners, lazy-load, SPAs, footer-hidden numbers, +1 prefix variants.
-"""
-
 import json
 import logging
 import os
