@@ -1567,29 +1567,38 @@ def ic3_safe_set(sb, element_id, value):
 #     except Exception as e:
 #         logger.error(f"IC3 submission failed: {e}")
 #         return (False, str(e), None)
-
 def ic3_click_next(sb, next_step_element=None, timeout=30):
     ic3_simulate_human_mouse(sb)
     ic3_human_delay(600, 1000)
 
     try:
-        btn = sb.driver.find_element("css selector", "button.usa-button.next")
+        # Find the VISIBLE Next button — not any Next button
+        btn = sb.driver.execute_script("""
+            var buttons = document.querySelectorAll('button.usa-button.next, button[class*="next"]');
+            for (var i = 0; i < buttons.length; i++) {
+                var rect = buttons[i].getBoundingClientRect();
+                var style = window.getComputedStyle(buttons[i]);
+                if (rect.width > 0 && rect.height > 0 && 
+                    style.display !== 'none' && 
+                    style.visibility !== 'hidden') {
+                    return buttons[i];
+                }
+            }
+            return null;
+        """)
+
+        if not btn:
+            print("No visible Next button found")
+            return
+
         sb.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
         ic3_human_delay(500, 800)
-        
-        # Use ActionChains for real mouse interaction
-        from selenium.webdriver.common.action_chains import ActionChains
-        actions = ActionChains(sb.driver)
-        actions.move_to_element(btn).pause(0.3).click().perform()
-        print("Next clicked via ActionChains")
+        sb.driver.execute_script("arguments[0].click();", btn)
+        print("Next clicked (visible button)")
+
     except Exception as e:
-        print(f"ActionChains click failed: {e}")
-        try:
-            sb.driver.execute_script("arguments[0].click();", btn)
-            print("Next clicked via JS fallback")
-        except Exception as e2:
-            print(f"JS click also failed: {e2}")
-            return
+        print(f"Next click failed: {e}")
+        return
 
     if next_step_element:
         for _ in range(timeout * 2):
@@ -1616,8 +1625,7 @@ def ic3_click_next(sb, next_step_element=None, timeout=30):
         print(f"Warning: {next_step_element} not found after {timeout}s")
     else:
         ic3_human_delay(3000, 5000)
-
-
+        
 def submit_ic3_complaint(
     phone_number: str,
     brand: str,
