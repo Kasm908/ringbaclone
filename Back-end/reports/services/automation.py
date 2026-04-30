@@ -1150,45 +1150,45 @@ def ic3_safe_set(sb, element_id, value):
 #         ic3_human_delay(3000, 5000)
 
 
-def ic3_click_next(sb, next_step_element=None, timeout=30):
-    ic3_simulate_human_mouse(sb)
-    ic3_human_delay(600, 1000)
+# def ic3_click_next(sb, next_step_element=None, timeout=30):
+#     ic3_simulate_human_mouse(sb)
+#     ic3_human_delay(600, 1000)
 
-    try:
-        btn = sb.driver.find_element("css selector", "button.usa-button.next")
-        sb.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
-        ic3_human_delay(300, 500)
-        sb.driver.execute_script("arguments[0].click();", btn)
-        print("Next clicked")
-    except Exception as e:
-        print(f"Next click failed: {e}")
-        return
+#     try:
+#         btn = sb.driver.find_element("css selector", "button.usa-button.next")
+#         sb.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
+#         ic3_human_delay(300, 500)
+#         sb.driver.execute_script("arguments[0].click();", btn)
+#         print("Next clicked")
+#     except Exception as e:
+#         print(f"Next click failed: {e}")
+#         return
 
-    if next_step_element:
-        for _ in range(timeout * 2):
-            try:
-                visible = sb.driver.execute_script(
-                    f"""
-                    var el = document.querySelector('{next_step_element}');
-                    if (!el) return false;
-                    var style = window.getComputedStyle(el);
-                    var rect = el.getBoundingClientRect();
-                    return style.display !== 'none' 
-                        && style.visibility !== 'hidden' 
-                        && style.opacity !== '0'
-                        && rect.width > 0 
-                        && rect.height > 0;
-                    """
-                )
-                if visible:
-                    print(f"Next step loaded: {next_step_element}")
-                    return
-            except Exception:
-                pass
-            time.sleep(0.5)
-        print(f"Warning: {next_step_element} not found after {timeout}s")
-    else:
-        ic3_human_delay(3000, 5000)
+#     if next_step_element:
+#         for _ in range(timeout * 2):
+#             try:
+#                 visible = sb.driver.execute_script(
+#                     f"""
+#                     var el = document.querySelector('{next_step_element}');
+#                     if (!el) return false;
+#                     var style = window.getComputedStyle(el);
+#                     var rect = el.getBoundingClientRect();
+#                     return style.display !== 'none' 
+#                         && style.visibility !== 'hidden' 
+#                         && style.opacity !== '0'
+#                         && rect.width > 0 
+#                         && rect.height > 0;
+#                     """
+#                 )
+#                 if visible:
+#                     print(f"Next step loaded: {next_step_element}")
+#                     return
+#             except Exception:
+#                 pass
+#             time.sleep(0.5)
+#         print(f"Warning: {next_step_element} not found after {timeout}s")
+#     else:
+#         ic3_human_delay(3000, 5000)
 
 # ── Main IC3 function ─────────────────────────────────────────────────────────
 
@@ -1568,7 +1568,54 @@ def ic3_click_next(sb, next_step_element=None, timeout=30):
 #         logger.error(f"IC3 submission failed: {e}")
 #         return (False, str(e), None)
 
+def ic3_click_next(sb, next_step_element=None, timeout=30):
+    ic3_simulate_human_mouse(sb)
+    ic3_human_delay(600, 1000)
 
+    try:
+        btn = sb.driver.find_element("css selector", "button.usa-button.next")
+        sb.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", btn)
+        ic3_human_delay(500, 800)
+        
+        # Use ActionChains for real mouse interaction
+        from selenium.webdriver.common.action_chains import ActionChains
+        actions = ActionChains(sb.driver)
+        actions.move_to_element(btn).pause(0.3).click().perform()
+        print("Next clicked via ActionChains")
+    except Exception as e:
+        print(f"ActionChains click failed: {e}")
+        try:
+            sb.driver.execute_script("arguments[0].click();", btn)
+            print("Next clicked via JS fallback")
+        except Exception as e2:
+            print(f"JS click also failed: {e2}")
+            return
+
+    if next_step_element:
+        for _ in range(timeout * 2):
+            try:
+                visible = sb.driver.execute_script(
+                    f"""
+                    var el = document.querySelector('{next_step_element}');
+                    if (!el) return false;
+                    var style = window.getComputedStyle(el);
+                    var rect = el.getBoundingClientRect();
+                    return style.display !== 'none' 
+                        && style.visibility !== 'hidden' 
+                        && style.opacity !== '0'
+                        && rect.width > 0 
+                        && rect.height > 0;
+                    """
+                )
+                if visible:
+                    print(f"Next step loaded: {next_step_element}")
+                    return
+            except Exception:
+                pass
+            time.sleep(0.5)
+        print(f"Warning: {next_step_element} not found after {timeout}s")
+    else:
+        ic3_human_delay(3000, 5000)
 
 
 def submit_ic3_complaint(
