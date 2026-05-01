@@ -31,7 +31,8 @@ auth = AuthBearer()
 
 @router.get("/stats", response=StatsOut, auth=auth, tags=["Dashboard"])
 def get_stats(request):
-    qs = ScamReport.objects.all()
+    # Filter by the logged-in user
+    qs = ScamReport.objects.filter(submitted_by=request.user)
     week_ago = timezone.now() - timedelta(days=7)
     return {
         "total": qs.count(),
