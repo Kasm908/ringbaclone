@@ -64,7 +64,7 @@ Evidence attached below:
     screenshot_path = None
 
     try:
-        with SB(uc=True, headless=False, xvfb=True) as sb:
+        with SB(uc=True, headless=True) as sb:
             sb.open("https://account.proton.me/mail")
             sb.sleep(5)
 
