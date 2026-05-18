@@ -259,8 +259,18 @@ const Dashboard: React.FC = () => {
 
   const handleEmailReport = async (reportId: string, payload: EmailPayload) => {
     try {
-      await reportsApi.sendEmail(reportId, payload);
-      showToast("Complaint email sent successfully", true);
+      const res = await reportsApi.sendComplaint(reportId, payload);
+      showToast(res.message || "Complaint email sent successfully", res.success !== false);
+
+      if (res.screenshot && res.screenshot_mime && res.screenshot_filename) {
+        const link = document.createElement("a");
+        link.href = `data:${res.screenshot_mime};base64,${res.screenshot}`;
+        link.download = res.screenshot_filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
       fetchAll();
     } catch (err: any) {
       showToast(err.response?.data?.detail || "Failed to send email", false);
