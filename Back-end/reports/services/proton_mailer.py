@@ -1,12 +1,29 @@
 import os
 import base64
 import tempfile
+import logging
 from datetime import datetime
 from seleniumbase import SB
+
+logger = logging.getLogger(__name__)
 
 PROTON_EMAIL    = os.environ.get("PROTON_EMAIL", "")
 PROTON_PASSWORD = os.environ.get("PROTON_PASSWORD", "")
 SCREENSHOT_DIR  = os.environ.get("PROTON_SCREENSHOT_DIR", "sent_screenshots")
+DEBUG_DIR       = "/tmp/proton_debug"
+
+
+def _debug_shot(sb, label: str):
+    """Save a screenshot at a checkpoint and log it."""
+    os.makedirs(DEBUG_DIR, exist_ok=True)
+    timestamp = datetime.now().strftime("%H%M%S")
+    path = os.path.join(DEBUG_DIR, f"{timestamp}_{label}.png")
+    try:
+        sb.save_screenshot(path)
+        logger.error(f"[PROTON DEBUG] {label}: {path}")
+        print(f"[PROTON DEBUG] {label}: {path}", flush=True)
+    except Exception as e:
+        logger.error(f"[PROTON DEBUG] Failed to screenshot {label}: {e}")
 
 
 def send_complaint(
@@ -17,20 +34,10 @@ def send_complaint(
     carrier_name: str,
     image: dict = None,
 ):
-    """
-    Send the universal abuse-report email via Proton.
-
-    Args:
-        to: recipient email
-        cc: list of CC emails (can be empty)
-        phone_number: scam phone number
-        scam_url: scam landing URL
-        carrier_name: carrier / resporg name
-        image: dict {"name", "type", "data"(base64)} or None
-
-    Returns:
-        (success: bool, message: str, screenshot_path: str | None)
-    """
+    logger.error(f"[PROTON DEBUG] START — to={to}, cc={cc}, phone={phone_number}")
+    logger.error(f"[PROTON DEBUG] PROTON_EMAIL set: {bool(PROTON_EMAIL)}, PROTON_PASSWORD set: {bool(PROTON_PASSWORD)}")
+    print(f"[PROTON DEBUG] START — to={to}", flush=True)
+    print(f"[PROTON DEBUG] Credentials present: email={bool(PROTON_EMAIL)}, pass={bool(PROTON_PASSWORD)}", flush=True)
 
     subject = "Formal Abuse Report — Tech Support Scam Infrastructure"
 
@@ -65,23 +72,41 @@ Evidence attached below:
 
     try:
         with SB(uc=True, headless=True) as sb:
+            logger.error("[PROTON DEBUG] SB session started")
+            print("[PROTON DEBUG] SB session started", flush=True)
+
             sb.open("https://account.proton.me/mail")
             sb.sleep(5)
+            _debug_shot(sb, "01_after_open")
+            logger.error(f"[PROTON DEBUG] Current URL after open: {sb.get_current_url()}")
 
+            logger.error("[PROTON DEBUG] Waiting for username field")
             sb.wait_for_element_visible('#username', timeout=15)
             sb.type('#username', PROTON_EMAIL)
+            _debug_shot(sb, "02_username_typed")
+
             sb.wait_for_element_visible('input[type="password"]', timeout=15)
             sb.type('input[type="password"]', PROTON_PASSWORD)
-            sb.click('button[type="submit"]')
-            sb.sleep(10)
+            _debug_shot(sb, "03_password_typed")
 
+            sb.click('button[type="submit"]')
+            logger.error("[PROTON DEBUG] Login submitted, waiting 10s")
+            sb.sleep(10)
+            _debug_shot(sb, "04_after_login")
+            logger.error(f"[PROTON DEBUG] Current URL after login: {sb.get_current_url()}")
+            logger.error(f"[PROTON DEBUG] Page title: {sb.get_page_title()}")
+
+            logger.error("[PROTON DEBUG] Waiting for compose button")
             sb.wait_for_element_visible('button[data-testid="sidebar:compose"]', timeout=20)
+            _debug_shot(sb, "05_inbox_loaded")
             sb.click('button[data-testid="sidebar:compose"]')
             sb.sleep(4)
+            _debug_shot(sb, "06_compose_opened")
 
             sb.wait_for_element_visible('input[data-testid="composer:to"]', timeout=15)
             sb.type('input[data-testid="composer:to"]', to)
             sb.send_keys('input[data-testid="composer:to"]', "\t")
+            _debug_shot(sb, "07_to_filled")
 
             if cc_list:
                 sb.click('button[data-testid="composer:recipients:cc-button"]')
@@ -91,8 +116,10 @@ Evidence attached below:
                     sb.type('input[data-testid="composer:cc"]', addr)
                     sb.send_keys('input[data-testid="composer:cc"]', "\t")
                     sb.sleep(0.3)
+                _debug_shot(sb, "08_cc_filled")
 
             sb.type('input[data-testid="composer:subject"]', subject)
+            _debug_shot(sb, "09_subject_filled")
 
             sb.switch_to_frame('iframe[data-testid="rooster-iframe"]')
             sb.wait_for_element_visible('#rooster-editor', timeout=15)
@@ -123,16 +150,25 @@ Evidence attached below:
                         data_url,
                     )
                 except Exception as e:
-                    print(f"Image embed failed: {e}")
+                    logger.error(f"[PROTON DEBUG] Image embed failed: {e}")
 
             sb.switch_to_default_content()
+            _debug_shot(sb, "10_body_filled")
 
+            logger.error("[PROTON DEBUG] Clicking send button")
             sb.click('button[data-testid="composer:send-button"]')
+            _debug_shot(sb, "11_send_clicked")
+
+            logger.error("[PROTON DEBUG] Waiting for composer to close")
             sb.wait_for_element_not_visible('section[data-testid="composer-0"]', timeout=60)
+            _debug_shot(sb, "12_after_send")
+            logger.error(f"[PROTON DEBUG] URL after send: {sb.get_current_url()}")
 
             sb.sleep(2)
             sb.click('a[data-testid="navigation-link:all-sent"]')
             sb.sleep(3)
+            _debug_shot(sb, "13_sent_folder")
+
             sb.wait_for_element_visible('div[data-testid^="message-item:"]', timeout=15)
             sb.sleep(1)
             sb.execute_script("""
@@ -149,14 +185,17 @@ Evidence attached below:
                 else if (items.length) { items[0].click(); }
             """)
             sb.sleep(4)
+            _debug_shot(sb, "14_email_opened")
 
             os.makedirs(SCREENSHOT_DIR, exist_ok=True)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             safe_to = to.replace("@", "_at_")
             screenshot_path = os.path.join(SCREENSHOT_DIR, f"sent_{safe_to}_{timestamp}.png")
             sb.save_screenshot(screenshot_path)
+            logger.error(f"[PROTON DEBUG] FINAL screenshot saved: {screenshot_path}")
 
         return True, "Email sent successfully", screenshot_path
 
     except Exception as e:
-        return False, f"Send failed: {e}", screenshot_path
+        logger.error(f"[PROTON DEBUG] EXCEPTION: {type(e).__name__}: {e}", exc_info=True)
+        return False, f"Send failed: {type(e).__name__}: {e}", screenshot_path
