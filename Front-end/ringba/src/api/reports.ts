@@ -108,5 +108,9 @@ export const reportsApi = {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-},
+  },
+  sendComplaint: async (reportId: string, payload: any) => {
+  const response = await client.post(`/v1/reports/${reportId}/send-complaint`, payload);
+  return response.data;
+  },
 };
