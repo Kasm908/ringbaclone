@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 
 PROTON_EMAIL           = os.environ.get("PROTON_EMAIL", "")
 PROTON_BRIDGE_PASSWORD = os.environ.get("PROTON_PASSWORD", "")
-BRIDGE_HOST            = os.environ.get("PROTON_BRIDGE_HOST", "127.0.0.1")
-BRIDGE_PORT            = int(os.environ.get("PROTON_BRIDGE_PORT", "1025"))
+BRIDGE_HOST = os.environ.get("PROTON_BRIDGE_HOST", "smtp.protonmail.ch")
+BRIDGE_PORT = int(os.environ.get("PROTON_BRIDGE_PORT", "587"))
 BRIDGE_SSL             = os.environ.get("PROTON_BRIDGE_SSL", "").lower() == "true"
 SCREENSHOT_DIR         = os.environ.get("PROTON_SCREENSHOT_DIR", "sent_screenshots")
 
