@@ -89,8 +89,12 @@ Evidence attached below:
             sb.click('button[type="submit"]')
             sb.sleep(10)
 
+            logger.error(f"[SELENIUM] URL after login: {sb.get_current_url()}")
+            sb.save_screenshot("/tmp/after_login.png")
+            logger.error("[SELENIUM] Screenshot saved to /tmp/after_login.png")
+
             logger.error("[SELENIUM] Opening compose")
-            sb.wait_for_element_visible('button[data-testid="sidebar:compose"]', timeout=20)
+            sb.wait_for_element_visible('button[data-testid="sidebar:compose"]', timeout=40)
             sb.click('button[data-testid="sidebar:compose"]')
             sb.sleep(4)
 
