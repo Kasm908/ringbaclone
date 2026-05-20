@@ -1,60 +1,15 @@
 import os
-import ssl
-import smtplib
-import logging
 import base64
+import tempfile
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
+from seleniumbase import SB
 
-logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Proton Bridge SMTP settings
-#
-# Proton Bridge exposes a local SMTP server on 127.0.0.1:1025 (STARTTLS) or
-# 127.0.0.1:1026 (SSL). Set these env vars to match your Bridge config.
-#
-# Required env vars:
-#   PROTON_EMAIL           — your Proton address (e.g. you@proton.me)
-#   PROTON_BRIDGE_PASSWORD — the Bridge-generated SMTP password (NOT your
-#                            Proton account password; found in Bridge app)
-#
-# Optional env vars (defaults match Bridge defaults):
-#   PROTON_BRIDGE_HOST     — default: 127.0.0.1
-#   PROTON_BRIDGE_PORT     — default: 1025  (use 1026 for SSL)
-#   PROTON_BRIDGE_SSL      — set to "true" to use SSL instead of STARTTLS
-#   PROTON_SCREENSHOT_DIR  — where to save sent confirmations (text receipts)
-# ---------------------------------------------------------------------------
-
-PROTON_EMAIL           = os.environ.get("PROTON_EMAIL", "")
-PROTON_BRIDGE_PASSWORD = os.environ.get("PROTON_PASSWORD", "")
-BRIDGE_HOST = os.environ.get("PROTON_BRIDGE_HOST", "smtp.protonmail.ch")
-BRIDGE_PORT = int(os.environ.get("PROTON_BRIDGE_PORT", "587"))
-BRIDGE_SSL             = os.environ.get("PROTON_BRIDGE_SSL", "").lower() == "true"
-SCREENSHOT_DIR         = os.environ.get("PROTON_SCREENSHOT_DIR", "sent_screenshots")
+PROTON_EMAIL    = os.environ.get("PROTON_EMAIL", "")
+PROTON_PASSWORD = os.environ.get("PROTON_PASSWORD", "")
 
 
-def send_complaint(
-    to: str,
-    cc: list,
-    phone_number: str,
-    scam_url: str,
-    carrier_name: str,
-    image: dict = None,
-):
-    logger.error(f"[PROTON] START — to={to}, cc={cc}, phone={phone_number}")
-    logger.error(f"[PROTON] PROTON_EMAIL set: {bool(PROTON_EMAIL)}, BRIDGE_PASSWORD set: {bool(PROTON_BRIDGE_PASSWORD)}")
-    print(f"[PROTON] START — to={to}", flush=True)
-
-    if not PROTON_EMAIL:
-        return False, "PROTON_EMAIL env var not set", None
-    if not PROTON_BRIDGE_PASSWORD:
-        return False, "PROTON_BRIDGE_PASSWORD env var not set", None
-
+def send_complaint(to, cc, phone_number, scam_url, carrier_name, image=None):
     subject = "Formal Abuse Report — Tech Support Scam Infrastructure"
-
     body = f"""To the Compliance and Legal Departments of {carrier_name} and Microsoft Corporation,
 
 This is a formal notification that your respective infrastructures — specifically {carrier_name}'s call-routing services and Microsoft's Azure Front Door — are currently being utilized to facilitate a criminal tech support scam.
@@ -81,108 +36,71 @@ We expect a confirmation of service termination within 24 hours.
 Evidence attached below:
 """
 
-    cc_list = [c for c in (cc or []) if c and c.strip()]
-    all_recipients = [to] + cc_list
-
-    # -----------------------------------------------------------------------
-    # Build the MIME message
-    # -----------------------------------------------------------------------
-    if image and image.get("data"):
-        msg = MIMEMultipart("mixed")
-    else:
-        msg = MIMEMultipart()
-
-    msg["From"]    = PROTON_EMAIL
-    msg["To"]      = to
-    msg["Subject"] = subject
-    if cc_list:
-        msg["Cc"] = ", ".join(cc_list)
-
-    msg.attach(MIMEText(body, "plain", "utf-8"))
-
-    # Attach image if provided
-    if image and image.get("data"):
-        try:
-            data_b64 = image["data"]
-            if "," in data_b64:
-                data_b64 = data_b64.split(",", 1)[1]
-            img_bytes = base64.b64decode(data_b64)
-            mime_type = (image.get("type") or "image/png").split("/")[-1]  # e.g. "png"
-            img_part = MIMEImage(img_bytes, _subtype=mime_type)
-            img_part.add_header(
-                "Content-Disposition",
-                "attachment",
-                filename=f"evidence.{mime_type}",
-            )
-            msg.attach(img_part)
-            logger.error("[PROTON] Image attachment added")
-        except Exception as e:
-            logger.error(f"[PROTON] Image attach failed (continuing without it): {e}")
-
-    # -----------------------------------------------------------------------
-    # Send via Proton Bridge SMTP
-    # -----------------------------------------------------------------------
-    receipt_path = None
     try:
-        logger.error(f"[PROTON] Connecting to Bridge at {BRIDGE_HOST}:{BRIDGE_PORT} (SSL={BRIDGE_SSL})")
-        print(f"[PROTON] Connecting to Bridge at {BRIDGE_HOST}:{BRIDGE_PORT}", flush=True)
+        with SB(uc=True, headless=True) as sb:
+            sb.open("https://account.proton.me/mail")
+            sb.sleep(5)
 
-        context = ssl.create_default_context()
-        # Bridge uses a self-signed cert — disable verification for localhost
-        context.check_hostname = False
-        context.verify_mode = ssl.CERT_NONE
+            sb.wait_for_element_visible('#username', timeout=15)
+            sb.type('#username', PROTON_EMAIL)
+            sb.type('input[type="password"]', PROTON_PASSWORD)
+            sb.click('button[type="submit"]')
+            sb.sleep(10)
 
-        if BRIDGE_SSL:
-            server = smtplib.SMTP_SSL(BRIDGE_HOST, BRIDGE_PORT, context=context)
-        else:
-            server = smtplib.SMTP(BRIDGE_HOST, BRIDGE_PORT)
-            server.starttls(context=context)
+            sb.wait_for_element_visible('button[data-testid="sidebar:compose"]', timeout=20)
+            sb.click('button[data-testid="sidebar:compose"]')
+            sb.sleep(4)
 
-        server.login(PROTON_EMAIL, PROTON_BRIDGE_PASSWORD)
-        logger.error("[PROTON] Bridge login successful")
-        print("[PROTON] Bridge login successful", flush=True)
+            sb.type('input[data-testid="composer:to"]', to)
+            sb.send_keys('input[data-testid="composer:to"]', "\t")
 
-        server.sendmail(PROTON_EMAIL, all_recipients, msg.as_string())
-        server.quit()
+            cc_list = [c for c in (cc or []) if c and c.strip()]
+            if cc_list:
+                sb.click('button[data-testid="composer:recipients:cc-button"]')
+                sb.sleep(1)
+                for addr in cc_list:
+                    sb.type('input[data-testid="composer:cc"]', addr)
+                    sb.send_keys('input[data-testid="composer:cc"]', "\t")
 
-        logger.error(f"[PROTON] Email sent to {all_recipients}")
-        print(f"[PROTON] Email sent to {all_recipients}", flush=True)
+            sb.type('input[data-testid="composer:subject"]', subject)
 
-        # Save a text receipt as the "screenshot" (no browser = no PNG)
-        os.makedirs(SCREENSHOT_DIR, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        safe_to = to.replace("@", "_at_")
-        receipt_path = os.path.join(SCREENSHOT_DIR, f"sent_{safe_to}_{timestamp}.txt")
-        with open(receipt_path, "w") as f:
-            f.write(f"Sent at: {timestamp}\n")
-            f.write(f"From: {PROTON_EMAIL}\n")
-            f.write(f"To: {to}\n")
-            f.write(f"Cc: {', '.join(cc_list)}\n")
-            f.write(f"Subject: {subject}\n")
-            f.write(f"Phone: {phone_number}\n")
-            f.write(f"URL: {scam_url}\n")
-            f.write(f"Carrier: {carrier_name}\n")
-        logger.error(f"[PROTON] Receipt saved: {receipt_path}")
+            sb.switch_to_frame('iframe[data-testid="rooster-iframe"]')
+            sb.wait_for_element_visible('#rooster-editor', timeout=15)
+            sb.execute_script(
+                "document.querySelector('#rooster-editor').innerHTML = "
+                "arguments[0].split('\\n').map(function(l){return '<div>' + (l || '<br>') + '</div>';}).join('');",
+                body,
+            )
 
-        return True, "Email sent successfully via Proton Bridge", receipt_path
+            if image and image.get("data"):
+                try:
+                    data_b64 = image["data"]
+                    if "," in data_b64:
+                        data_b64 = data_b64.split(",", 1)[1]
+                    ext = (image.get("type") or "image/png").split("/")[-1]
+                    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{ext}")
+                    tmp.write(base64.b64decode(data_b64))
+                    tmp.close()
+                    with open(tmp.name, "rb") as f:
+                        b64 = base64.b64encode(f.read()).decode("ascii")
+                    data_url = f"data:image/{ext};base64,{b64}"
+                    sb.execute_script("""
+                        var editor = document.querySelector('#rooster-editor');
+                        editor.focus();
+                        var img = document.createElement('img');
+                        img.src = arguments[0];
+                        img.style.maxWidth = '100%';
+                        editor.appendChild(document.createElement('br'));
+                        editor.appendChild(img);
+                    """, data_url)
+                except Exception as e:
+                    print(f"Image embed failed: {e}")
 
-    except smtplib.SMTPAuthenticationError as e:
-        err = (
-            f"Bridge authentication failed: {e}. "
-            "Make sure PROTON_BRIDGE_PASSWORD is the Bridge app password "
-            "(not your Proton account password), and that Bridge is running."
-        )
-        logger.error(f"[PROTON] {err}")
-        return False, err, None
+            sb.switch_to_default_content()
+            sb.click('button[data-testid="composer:send-button"]')
+            sb.wait_for_element_not_visible('section[data-testid="composer-0"]', timeout=30)
 
-    except ConnectionRefusedError:
-        err = (
-            f"Could not connect to Proton Bridge at {BRIDGE_HOST}:{BRIDGE_PORT}. "
-            "Make sure Proton Bridge is running and the host/port env vars are correct."
-        )
-        logger.error(f"[PROTON] {err}")
-        return False, err, None
+        return True, "Email sent successfully", None
 
     except Exception as e:
-        logger.error(f"[PROTON] EXCEPTION: {type(e).__name__}: {e}", exc_info=True)
-        return False, f"Send failed: {type(e).__name__}: {e}", receipt_path
+        return False, f"Send failed: {type(e).__name__}: {e}", None
