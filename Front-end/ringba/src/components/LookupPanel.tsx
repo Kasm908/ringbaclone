@@ -64,11 +64,11 @@ const Badge = ({
   color?: "green" | "red" | "amber" | "blue" | "gray";
 }) => {
   const colors = {
-    green: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-    red: "bg-red-500/10 text-red-400 border-red-500/20",
-    amber: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-    blue: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-    gray: "bg-[#1a1d2e] text-[#9ca3af] border-[#2a2d3a]",
+    green: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+    red: "bg-red-500/10 text-red-600 border-red-500/20",
+    amber: "bg-amber-500/10 text-amber-600 border-amber-500/20",
+    blue: "bg-blue-500/10 text-blue-600 border-blue-500/20",
+    gray: "bg-slate-50 text-slate-600 border-slate-200",
   };
   return (
     <span className={`text-xs font-mono px-2 py-0.5 rounded border ${colors[color]}`}>
@@ -91,13 +91,13 @@ const Field = ({
   color?: "green" | "red" | "amber" | "blue" | "gray";
 }) => (
   <div className="min-w-0">
-    <p className="text-xs text-[#4b5563] mb-1">{label}</p>
+    <p className="text-xs text-slate-400 mb-1">{label}</p>
     {loading ? (
-      <div className="h-4 w-28 bg-[#1a1d2e] rounded animate-pulse" />
+      <div className="h-4 w-28 bg-slate-50 rounded animate-pulse" />
     ) : color ? (
       <Badge value={value} color={color} />
     ) : (
-      <p className={`text-white text-sm break-all ${mono ? "font-mono" : ""}`}>
+      <p className={`text-slate-900 text-sm break-all ${mono ? "font-mono" : ""}`}>
         {String(value ?? "—")}
       </p>
     )}
@@ -112,8 +112,8 @@ const SectionHeader = ({
   title: string;
 }) => (
   <div className="flex items-center gap-2 mb-3">
-    <Icon size={13} className="text-[#4b5563]" />
-    <p className="text-xs font-semibold text-[#6b7280] uppercase tracking-widest">
+    <Icon size={13} className="text-slate-400" />
+    <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest">
       {title}
     </p>
   </div>
@@ -249,18 +249,18 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
   };
 
   return (
-    <div className="bg-[#0f1117] border border-[#1e2130] rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-5">
+    <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center shrink-0">
-          <Search size={15} className="text-blue-400" />
+          <Search size={15} className="text-blue-600" />
         </div>
         <div className="min-w-0">
-          <h2 className="text-white text-sm font-semibold">Number Lookup</h2>
-          <p className="text-[#4b5563] text-xs font-mono hidden sm:block">
+          <h2 className="text-slate-900 text-sm font-semibold">Number Lookup</h2>
+          <p className="text-slate-400 text-xs font-mono hidden sm:block">
             Paste a toll-free number or scam landing page URL
           </p>
-          <p className="text-[#4b5563] text-xs font-mono sm:hidden">
+          <p className="text-slate-400 text-xs font-mono sm:hidden">
             Paste number or URL
           </p>
         </div>
@@ -269,7 +269,7 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
       {/* Input Row */}
       <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
         <input
-          className="flex-1 bg-[#1a1d2e] border border-[#2a2d3a] rounded-lg px-3 sm:px-4 py-3 text-white text-sm font-mono placeholder-[#4b5563] focus:outline-none focus:border-[#3b82f6] transition-colors"
+          className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 sm:px-4 py-3 text-slate-900 text-sm font-mono placeholder-slate-400 focus:outline-none focus:border-[#1E3A8A] transition-colors"
           placeholder="+1 888 555 0100 or https://scam-site.com"
           value={input}
           onChange={(e) => { setInput(e.target.value); setResult(null); setError(""); }}
@@ -288,7 +288,7 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 sm:px-4 py-3 text-red-400 text-xs font-mono">
+        <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-3 sm:px-4 py-3 text-red-600 text-xs font-mono">
           <AlertCircle size={13} className="shrink-0" />
           <span className="break-words">{error}</span>
         </div>
@@ -299,23 +299,23 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
         <>
           {scraping && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-              <div className="bg-[#0f1117] border border-[#1e2130] rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl max-w-sm w-full mx-4">
-                <Loader size={40} className="animate-spin text-amber-400" />
+              <div className="bg-white border border-slate-200 rounded-xl p-8 flex flex-col items-center gap-4 shadow-2xl max-w-sm w-full mx-4">
+                <Loader size={40} className="animate-spin text-amber-600" />
                 <div className="text-center">
-                  <p className="text-white font-semibold text-base mb-1">Analyzing URL</p>
-                  <p className="text-[#6b7280] text-sm">Extracting phone number and traffic intelligence</p>
-                  <p className="text-amber-400 text-xs font-mono mt-3">Please wait — this may take up to 30 seconds</p>
+                  <p className="text-slate-900 font-semibold text-base mb-1">Analyzing URL</p>
+                  <p className="text-slate-500 text-sm">Extracting phone number and traffic intelligence</p>
+                  <p className="text-amber-600 text-xs font-mono mt-3">Please wait — this may take up to 30 seconds</p>
                 </div>
               </div>
             </div>
           )}
 
 
-        <div className="border border-[#1e2130] rounded-xl overflow-hidden">
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
 
           {/* Status Bar */}
-          <div className="bg-[#1a1d2e] px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
-            <span className="text-xs font-medium text-emerald-400 flex items-center gap-2 min-w-0">
+          <div className="bg-slate-50 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
+            <span className="text-xs font-medium text-emerald-600 flex items-center gap-2 min-w-0">
               <CheckCircle2 size={13} className="shrink-0" />
               <span className="truncate">
                 {scraping
@@ -325,7 +325,7 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
                     : "Lookup complete"}
               </span>
             </span>
-            {scraping && <Loader size={13} className="animate-spin text-amber-400 shrink-0" />}
+            {scraping && <Loader size={13} className="animate-spin text-amber-600 shrink-0" />}
           </div>
 
           <div className="p-3 sm:p-5 space-y-5">
@@ -355,7 +355,7 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
               </div>
             </div>
 
-            <div className="border-t border-[#1e2130]" />
+            <div className="border-t border-slate-200" />
 
             {/* Carrier & Line */}
             <div>
@@ -390,7 +390,7 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
               </div>
             </div>
 
-            <div className="border-t border-[#1e2130]" />
+            <div className="border-t border-slate-200" />
 
             {/* Location */}
             <div>
@@ -403,7 +403,7 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
               </div>
             </div>
 
-            <div className="border-t border-[#1e2130]" />
+            <div className="border-t border-slate-200" />
 
             {/* Risk */}
             <div>
@@ -427,7 +427,7 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
               </div>
             </div>
 
-            <div className="border-t border-[#1e2130]" />
+            <div className="border-t border-slate-200" />
 
             {/* Messaging */}
             <div>
@@ -441,7 +441,7 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
             {/* Campaign / URL — only show if URL lookup */}
             {(result.traffic_source || result.campaign_id || result.domain || result.utm_source) && (
               <>
-                <div className="border-t border-[#1e2130]" />
+                <div className="border-t border-slate-200" />
                 <div>
                   <SectionHeader icon={Cpu} title="Traffic Intelligence" />
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
@@ -468,7 +468,7 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
           {/* Submit Row */}
           <div className="px-3 sm:px-5 pb-3 sm:pb-5 flex flex-col sm:flex-row gap-2 sm:gap-3">
             <input
-              className="flex-1 bg-[#1a1d2e] border border-[#2a2d3a] rounded-lg px-3 sm:px-4 py-2.5 text-white text-sm placeholder-[#4b5563] focus:outline-none focus:border-[#3b82f6] transition-colors"
+              className="flex-1 bg-slate-50 border border-slate-200 rounded-lg px-3 sm:px-4 py-2.5 text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:border-[#1E3A8A] transition-colors"
               placeholder="Which brand is being impersonated? (e.g. Microsoft)"
               value={brand}
               onChange={(e) => setBrand(e.target.value)}
@@ -476,7 +476,7 @@ const LookupPanel: React.FC<LookupPanelProps> = ({ onSubmit }) => {
             <button
               onClick={handleSubmit}
               disabled={!brand.trim() || scraping}
-              className="w-full sm:w-auto px-4 sm:px-5 py-2.5 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+              className="w-full sm:w-auto px-4 sm:px-5 py-2.5 bg-[#1E3A8A] hover:bg-[#16306E] disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
             >
               <Plus size={14} />
               <span className="sm:hidden">Submit</span>

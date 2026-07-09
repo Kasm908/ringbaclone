@@ -46,24 +46,24 @@ const SubmitModal: React.FC<SubmitModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-[#0f1117] border border-[#2a2d3a] rounded-xl w-full max-w-lg mx-4 shadow-2xl">
-        <div className="flex items-center justify-between p-6 border-b border-[#2a2d3a]">
+      <div className="bg-white border border-slate-200 rounded-xl w-full max-w-lg mx-4 shadow-2xl">
+        <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center">
-              <PhoneOff size={16} className="text-red-400" />
+            <div className="w-8 h-8 rounded-lg bg-[#1E3A8A] border border-[#1E3A8A] flex items-center justify-center">
+              <PhoneOff size={16} className="text-white" />
             </div>
             <div>
-              <h2 className="text-white font-semibold text-sm">
+              <h2 className="text-slate-900 font-semibold text-sm">
                 Submit Scam Report
               </h2>
-              <p className="text-[#6b7280] text-xs mt-0.5">
+              <p className="text-slate-500 text-xs mt-0.5">
                 RespOrg lookup runs automatically
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-[#6b7280] hover:text-white transition-colors"
+            className="text-slate-500 hover:text-slate-900 transition-colors"
           >
             <X size={18} />
           </button>
@@ -71,7 +71,7 @@ const SubmitModal: React.FC<SubmitModalProps> = ({
 
         <div className="p-6 space-y-4">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-400 text-xs font-mono">
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-red-600 text-xs font-mono">
               {error}
             </div>
           )}
@@ -94,11 +94,11 @@ const SubmitModal: React.FC<SubmitModalProps> = ({
             },
           ].map(({ key, label, placeholder }) => (
             <div key={key}>
-              <label className="block text-xs font-medium text-[#9ca3af] mb-1.5">
+              <label className="block text-xs font-medium text-slate-600 mb-1.5">
                 {label}
               </label>
               <input
-                className="w-full bg-[#1a1d2e] border border-[#2a2d3a] rounded-lg px-3 py-2.5 text-white text-sm font-mono placeholder-[#4b5563] focus:outline-none focus:border-[#3b82f6] transition-colors"
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-slate-900 text-sm font-mono placeholder-slate-400 focus:outline-none focus:border-[#1E3A8A] transition-colors"
                 placeholder={placeholder}
                 value={form[key as keyof typeof form]}
                 onChange={(e) =>
@@ -109,12 +109,12 @@ const SubmitModal: React.FC<SubmitModalProps> = ({
           ))}
 
           <div>
-            <label className="block text-xs font-medium text-[#9ca3af] mb-1.5">
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">
               Notes
             </label>
             <textarea
               rows={3}
-              className="w-full bg-[#1a1d2e] border border-[#2a2d3a] rounded-lg px-3 py-2.5 text-white text-sm placeholder-[#4b5563] focus:outline-none focus:border-[#3b82f6] transition-colors resize-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-slate-900 text-sm placeholder-slate-400 focus:outline-none focus:border-[#1E3A8A] transition-colors resize-none"
               placeholder="How was it found? What was the script?"
               value={form.notes}
               onChange={(e) =>
@@ -127,14 +127,14 @@ const SubmitModal: React.FC<SubmitModalProps> = ({
         <div className="px-6 pb-6 flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg border border-[#2a2d3a] text-[#9ca3af] text-sm hover:text-white hover:border-[#3a3d4a] transition-colors"
+            className="flex-1 py-2.5 rounded-lg border border-slate-200 text-slate-600 text-sm hover:text-slate-900 hover:border-slate-300 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex-1 py-2.5 rounded-lg bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 rounded-lg bg-[#1E3A8A] hover:bg-[#16306E] disabled:opacity-50 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
           >
             {loading ? (
               <RefreshCw size={14} className="animate-spin" />

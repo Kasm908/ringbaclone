@@ -11,25 +11,25 @@ type Status = "pending" | "reported" | "killed" | "failed";
 const STATUS_CONFIG = {
   pending: {
     label: "Pending",
-    color: "text-amber-400",
+    color: "text-amber-600",
     bg: "bg-amber-400/10 border-amber-400/30",
     icon: Clock,
   },
   reported: {
     label: "Reported",
-    color: "text-blue-400",
+    color: "text-blue-600",
     bg: "bg-blue-400/10 border-blue-400/30",
     icon: Send,
   },
   killed: {
     label: "Killed",
-    color: "text-emerald-400",
+    color: "text-emerald-600",
     bg: "bg-emerald-400/10 border-emerald-400/30",
     icon: CheckCircle2,
   },
   failed: {
     label: "Failed",
-    color: "text-red-400",
+    color: "text-red-600",
     bg: "bg-red-400/10 border-red-400/30",
     icon: XCircle,
   },
