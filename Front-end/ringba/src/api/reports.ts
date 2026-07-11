@@ -87,11 +87,10 @@ export const reportsApi = {
     return res.data;
   },
 
-
   exportCsv: async () => {
       const token = localStorage.getItem("access_token");
-      const BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
-      window.open(`${BASE}/api/v1/reports/export?token=${token}`, "_blank");
+      const BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
+      window.open(`${BASE}/v1/reports/export?token=${token}`, "_blank");
   },
   downloadScreenshot: async (reportId: string, type: "ftc" | "ic3"): Promise<void> => {
   const res = await client.get(`/v1/reports/${reportId}/screenshot`, {
