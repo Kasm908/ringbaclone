@@ -11,6 +11,17 @@ from django.conf import settings
 from authentication.api import AuthBearer
 from reports.services.traffic import extract_traffic_source
 import logging
+
+from django.http import HttpResponse
+import csv
+from ninja import Router
+from django.views.decorators.http import require_GET
+import csv
+from django.http import HttpResponse
+import csv
+from ninja import Router
+from django.views.decorators.http import require_GET
+import csv
 logger = logging.getLogger(__name__)
 from reports.models import ScamReport, RespOrg, ReportLog
 from reports.schemas import (
@@ -105,6 +116,35 @@ def create_report(request, payload: ScamReportIn):
 
     report.refresh_from_db()
     return report
+
+
+@router.get("/reports/export", auth=auth, tags=["Reports"], response=None)
+def export_reports_csv(request):
+    user = request.user
+    reports = ScamReport.objects.filter(submitted_by=user).order_by("-created_at")
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="scam_reports.csv"'
+    response["Access-Control-Expose-Headers"] = "Content-Disposition"
+
+    writer = csv.writer(response)
+    writer.writerow([
+        "Brand", "Phone Number", "Carrier",
+        "Landing URL", "Status", "Created At", "Report Sent At",
+    ])
+
+    for r in reports:
+        writer.writerow([
+            r.brand,
+            r.phone_number,
+            r.resporg_raw or "",
+            r.landing_url or "",
+            r.status,
+            r.created_at.strftime("%Y-%m-%d %H:%M"),
+            r.report_sent_at.strftime("%Y-%m-%d %H:%M") if r.report_sent_at else "",
+        ])
+
+    return response
 
 @router.get("/reports/{report_id}", response=ScamReportDetail, auth=auth, tags=["Reports"])
 def get_report(request, report_id: UUID):
@@ -543,38 +583,7 @@ from reports.models import ScamReport  # adjust import to your model
 
 
 
-from django.http import HttpResponse
-import csv
-from ninja import Router
-from django.views.decorators.http import require_GET
-import csv
-@router.get("/reports/export", auth=auth, tags=["Reports"], response=None)
-def export_reports_csv(request):
-    user = request.user
-    reports = ScamReport.objects.filter(submitted_by=user).order_by("-created_at")
 
-    response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="scam_reports.csv"'
-    response["Access-Control-Expose-Headers"] = "Content-Disposition"
-
-    writer = csv.writer(response)
-    writer.writerow([
-        "Brand", "Phone Number", "Carrier",
-        "Landing URL", "Status", "Created At", "Report Sent At",
-    ])
-
-    for r in reports:
-        writer.writerow([
-            r.brand,
-            r.phone_number,
-            r.resporg_raw or "",
-            r.landing_url or "",
-            r.status,
-            r.created_at.strftime("%Y-%m-%d %H:%M"),
-            r.report_sent_at.strftime("%Y-%m-%d %H:%M") if r.report_sent_at else "",
-        ])
-
-    return response
 
 
 
