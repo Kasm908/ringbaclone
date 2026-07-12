@@ -8,7 +8,8 @@ class RegisterIn(Schema):
     email: str
     username: str
     password: str
-    role: Optional[str] = "operator"
+    # NOTE: 'role' intentionally removed. Roles must never be self-assigned at
+    # registration; the server forces the default role below.
 
 
 class LoginIn(Schema):

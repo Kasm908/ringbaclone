@@ -25,17 +25,6 @@ router = Router()
 
 
 class AuthBearer(HttpBearer):
-    def __call__(self, request):
-        # HttpBearer rejects header-less requests before authenticate() runs.
-        # Browser downloads (window.open) can't send an Authorization header,
-        # so fall back to ?token= here.
-        result = super().__call__(request)
-        if result is None:
-            qs_token = request.GET.get("token", "")
-            if qs_token:
-                return self.authenticate(request, qs_token)
-        return result
-
     def authenticate(self, request, token: str):
         from ninja_jwt.tokens import AccessToken
         if not token:
@@ -94,11 +83,13 @@ def register(request, payload: RegisterIn):
     validate_password(payload.password)
     
     # Create user
+    # SECURITY: role is forced server-side. Never trust a client-supplied role;
+    # elevating to a privileged role must be an admin-only operation.
     user = User.objects.create_user(
         email=payload.email,
         username=payload.username,
         password=payload.password,
-        role=payload.role or "operator",
+        role="operator",
     )
     
     refresh = RefreshToken.for_user(user)

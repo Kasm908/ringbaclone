@@ -11,17 +11,6 @@ from django.conf import settings
 from authentication.api import AuthBearer
 from reports.services.traffic import extract_traffic_source
 import logging
-
-from django.http import HttpResponse
-import csv
-from ninja import Router
-from django.views.decorators.http import require_GET
-import csv
-from django.http import HttpResponse
-import csv
-from ninja import Router
-from django.views.decorators.http import require_GET
-import csv
 logger = logging.getLogger(__name__)
 from reports.models import ScamReport, RespOrg, ReportLog
 from reports.schemas import (
@@ -40,6 +29,23 @@ from reports.services.resporg import lookup_resporg, extract_phone_from_url, nor
 
 router = Router()
 auth = AuthBearer()
+
+
+def get_owned_report(request, report_id, queryset=None):
+    """
+    Fetch a report by id, but only if it belongs to the requesting user.
+    Admins may access any report. Anyone else touching another user's report
+    gets a 404 (not 403) so the endpoint doesn't leak whether the id exists.
+
+    This is the single choke point that closes the IDOR across every
+    per-report endpoint — read, actions, screenshots, and email senders.
+    """
+    from ninja.errors import HttpError
+    qs = queryset if queryset is not None else ScamReport.objects.all()
+    report = get_object_or_404(qs, id=report_id)
+    if getattr(request.user, "role", None) != "admin" and report.submitted_by_id != request.user.id:
+        raise HttpError(404, "Report not found")
+    return report
 
 @router.get("/stats", response=StatsOut, auth=auth, tags=["Dashboard"])
 def get_stats(request):
@@ -117,38 +123,9 @@ def create_report(request, payload: ScamReportIn):
     report.refresh_from_db()
     return report
 
-
-@router.get("/reports/export", auth=auth, tags=["Reports"], response=None)
-def export_reports_csv(request):
-    user = request.user
-    reports = ScamReport.objects.filter(submitted_by=user).order_by("-created_at")
-
-    response = HttpResponse(content_type="text/csv")
-    response["Content-Disposition"] = 'attachment; filename="scam_reports.csv"'
-    response["Access-Control-Expose-Headers"] = "Content-Disposition"
-
-    writer = csv.writer(response)
-    writer.writerow([
-        "Brand", "Phone Number", "Carrier",
-        "Landing URL", "Status", "Created At", "Report Sent At",
-    ])
-
-    for r in reports:
-        writer.writerow([
-            r.brand,
-            r.phone_number,
-            r.resporg_raw or "",
-            r.landing_url or "",
-            r.status,
-            r.created_at.strftime("%Y-%m-%d %H:%M"),
-            r.report_sent_at.strftime("%Y-%m-%d %H:%M") if r.report_sent_at else "",
-        ])
-
-    return response
-
 @router.get("/reports/{report_id}", response=ScamReportDetail, auth=auth, tags=["Reports"])
 def get_report(request, report_id: UUID):
-    report = get_object_or_404(ScamReport.objects.select_related("resporg"), id=report_id)
+    report = get_owned_report(request, report_id, ScamReport.objects.select_related("resporg"))
     logs = report.logs.all()[:20]
     return {
         "id": report.id,
@@ -171,7 +148,7 @@ def get_report(request, report_id: UUID):
 @router.post("/reports/{report_id}/report", response=ReportActionOut, auth=auth, tags=["Actions"])
 def trigger_report(request, report_id: UUID):
     """Trigger all reports: carrier + authorities (Phase 3)."""
-    report = get_object_or_404(ScamReport, id=report_id)
+    report = get_owned_report(request, report_id)
 
     if report.status == ScamReport.Status.KILLED:
         return {
@@ -195,7 +172,7 @@ def trigger_report(request, report_id: UUID):
 
 @router.post("/reports/{report_id}/kill", response=ReportActionOut, auth=auth, tags=["Actions"])
 def kill_report(request, report_id: UUID):
-    report = get_object_or_404(ScamReport, id=report_id)
+    report = get_owned_report(request, report_id)
     report.status = ScamReport.Status.KILLED
     report.save()
 
@@ -220,7 +197,7 @@ def update_status(request, report_id: UUID, status: str):
         from ninja.errors import HttpError
         raise HttpError(400, f"Invalid status. Must be one of: {valid}")
 
-    report = get_object_or_404(ScamReport, id=report_id)
+    report = get_owned_report(request, report_id)
     old_status = report.status
     report.status = status
     report.save()
@@ -420,7 +397,7 @@ from ninja.errors import HttpError
 @router.get("/reports/{report_id}/screenshots/ftc", auth=auth, tags=["Screenshots"])
 def get_ftc_screenshot(request, report_id: UUID):
     """Serve FTC submission screenshot."""
-    report = get_object_or_404(ScamReport, id=report_id)
+    report = get_owned_report(request, report_id)
     
     if not report.ftc_screenshot or not os.path.exists(report.ftc_screenshot):
         raise HttpError(404, "FTC screenshot not found")
@@ -431,7 +408,7 @@ def get_ftc_screenshot(request, report_id: UUID):
 # @router.get("/reports/{report_id}/screenshots/ic3", auth=auth, tags=["Screenshots"])
 # def get_ic3_screenshot(request, report_id: UUID):
     """Serve IC3 submission screenshot."""
-    report = get_object_or_404(ScamReport, id=report_id)
+    report = get_owned_report(request, report_id)
     
     if not report.ic3_screenshot or not os.path.exists(report.ic3_screenshot):
         raise HttpError(404, "IC3 screenshot not found")
@@ -440,7 +417,7 @@ def get_ftc_screenshot(request, report_id: UUID):
 
 @router.get("/reports/{report_id}/screenshots/ic3", auth=auth, tags=["Screenshots"])
 def get_ic3_screenshot(request, report_id: UUID):
-    report = get_object_or_404(ScamReport, id=report_id)
+    report = get_owned_report(request, report_id)
     if not report.ic3_screenshot_b64:
         raise HttpError(404, "IC3 screenshot not found")
     import base64
@@ -450,7 +427,7 @@ def get_ic3_screenshot(request, report_id: UUID):
 def get_all_screenshots(request, report_id: UUID):
 
     """Get list of available screenshots for a report."""
-    report = get_object_or_404(ScamReport, id=report_id)
+    report = get_owned_report(request, report_id)
     
     screenshots = {
         "ftc": {
@@ -502,7 +479,7 @@ def send_email_complaint(request, report_id: UUID, payload: EmailComplaintIn):
     """
     from reports.services.mailer import send_resporg_complaint
 
-    report = get_object_or_404(ScamReport, id=report_id)
+    report = get_owned_report(request, report_id)
 
     success, message = send_resporg_complaint(
         report_id=str(report.id),
@@ -583,7 +560,38 @@ from reports.models import ScamReport  # adjust import to your model
 
 
 
+from django.http import HttpResponse
+import csv
+from ninja import Router
+from django.views.decorators.http import require_GET
+import csv
+@router.get("/reports/export", auth=auth, tags=["Reports"], response=None)
+def export_reports_csv(request):
+    user = request.user
+    reports = ScamReport.objects.filter(submitted_by=user).order_by("-created_at")
 
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="scam_reports.csv"'
+    response["Access-Control-Expose-Headers"] = "Content-Disposition"
+
+    writer = csv.writer(response)
+    writer.writerow([
+        "Brand", "Phone Number", "Carrier",
+        "Landing URL", "Status", "Created At", "Report Sent At",
+    ])
+
+    for r in reports:
+        writer.writerow([
+            r.brand,
+            r.phone_number,
+            r.resporg_raw or "",
+            r.landing_url or "",
+            r.status,
+            r.created_at.strftime("%Y-%m-%d %H:%M"),
+            r.report_sent_at.strftime("%Y-%m-%d %H:%M") if r.report_sent_at else "",
+        ])
+
+    return response
 
 
 
@@ -591,7 +599,7 @@ from reports.models import ScamReport  # adjust import to your model
 
 # @router.get("/reports/{report_id}/screenshot", auth=auth, tags=["Screenshots"])
 # def get_screenshot_by_type(request, report_id: UUID, type: str = "ftc"):
-#     report = get_object_or_404(ScamReport, id=report_id)
+#     report = get_owned_report(request, report_id)
     
 #     if type == "ftc":
 #         path = report.ftc_screenshot
@@ -634,7 +642,7 @@ def get_all_emails(request):
 
 @router.get("/reports/{report_id}/screenshot", auth=auth, tags=["Screenshots"])
 def get_screenshot_by_type(request, report_id: UUID, type: str = "ftc"):
-    report = get_object_or_404(ScamReport, id=report_id)
+    report = get_owned_report(request, report_id)
     
     if type == "ic3":
         if not report.ic3_screenshot_b64:
@@ -673,7 +681,7 @@ def send_complaint_email(request, report_id: UUID, payload: SendComplaintIn):
     """
     from reports.services.proton_mailer import send_complaint
 
-    report = get_object_or_404(ScamReport, id=report_id)
+    report = get_owned_report(request, report_id)
 
     success, message, screenshot_path = send_complaint(
         to=payload.to,
