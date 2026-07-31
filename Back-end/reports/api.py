@@ -124,7 +124,11 @@ def create_report(request, payload: ScamReportIn):
     report.refresh_from_db()
     return report
 
-@router.get("/reports/{report_id}", response=ScamReportDetail, auth=auth, tags=["Reports"])
+# NOTE: the `{uuid:...}` converter is load-bearing, not decoration. With a bare
+# `{report_id}` Django installs a plain string converter, so sibling literal
+# routes like /reports/export match HERE first and then fail UUID validation
+# with a 422. Constraining the converter lets those literals fall through.
+@router.get("/reports/{uuid:report_id}", response=ScamReportDetail, auth=auth, tags=["Reports"])
 def get_report(request, report_id: UUID):
     report = get_owned_report(request, report_id, ScamReport.objects.select_related("resporg"))
     logs = report.logs.all()[:20]
