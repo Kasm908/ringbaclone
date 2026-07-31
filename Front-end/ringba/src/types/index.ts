@@ -62,6 +62,13 @@ export interface ActionResult {
 }
 
 
+export type ScreenshotType = "ftc" | "ic3";
+
+export interface ScreenshotAvailability {
+  ftc: { available: boolean; url: string | null };
+  ic3: { available: boolean; url: string | null };
+}
+
 export interface SentEmail {
   id: string;
   email_type: string;

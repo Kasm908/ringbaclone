@@ -1,4 +1,5 @@
 import os
+import base64
 from typing import Optional
 from uuid import UUID
 from datetime import timedelta

@@ -1,5 +1,41 @@
 import client from "./client";
-import type { PaginatedReports, ScamReport, Stats, ActionResult, SentEmail } from "../types";
+import type { PaginatedReports, ScamReport, Stats, ActionResult, SentEmail, ScreenshotAvailability, ScreenshotType } from "../types";
+
+/** Save an in-memory payload to the user's disk via a temporary object URL. */
+const saveBlob = (data: BlobPart, mime: string, filename: string) => {
+  const url = URL.createObjectURL(new Blob([data], { type: mime }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+/**
+ * Errors on `responseType: "blob"` requests arrive with a Blob body, so the
+ * usual `err.response.data.detail` is undefined. Read the Blob back to text
+ * to recover the real message.
+ */
+const readBlobError = async (err: any, fallback: string): Promise<string> => {
+  const data = err?.response?.data;
+  if (data instanceof Blob) {
+    try {
+      const text = await data.text();
+      try {
+        const parsed = JSON.parse(text);
+        return parsed.detail || parsed.message || fallback;
+      } catch {
+        return text || fallback;
+      }
+    } catch {
+      return fallback;
+    }
+  }
+  return data?.detail || err?.message || fallback;
+};
+
 export const reportsApi = {
   getStats: async (): Promise<Stats> => {
     const res = await client.get("/v1/stats");
@@ -87,26 +123,39 @@ export const reportsApi = {
     return res.data;
   },
 
-  exportCsv: async () => {
-      const token = localStorage.getItem("access_token");
-      const BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
-      window.open(`${BASE}/v1/reports/export?token=${token}`, "_blank");
+  /**
+   * Fetch the CSV through the authenticated axios client rather than
+   * window.open. Bearer auth lives in an Authorization header, which a plain
+   * browser navigation cannot set — the old `?token=` URL always came back 401.
+   */
+  exportCsv: async (): Promise<void> => {
+    try {
+      const res = await client.get("/v1/reports/export", { responseType: "blob" });
+      const disposition = res.headers["content-disposition"] as string | undefined;
+      const filename = disposition?.match(/filename="?([^";]+)"?/i)?.[1] || "scam_reports.csv";
+      saveBlob(res.data, "text/csv;charset=utf-8", filename);
+    } catch (err: any) {
+      throw new Error(await readBlobError(err, "Could not export reports."));
+    }
   },
-  downloadScreenshot: async (reportId: string, type: "ftc" | "ic3"): Promise<void> => {
-  const res = await client.get(`/v1/reports/${reportId}/screenshot`, {
-    params: { type },
-    responseType: "blob",
-  });
 
-  const blob = new Blob([res.data], { type: "image/png" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${type}_complaint_${reportId}.png`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  getScreenshots: async (reportId: string): Promise<ScreenshotAvailability> => {
+    const res = await client.get(`/v1/reports/${reportId}/screenshots`);
+    return res.data;
+  },
+
+  downloadScreenshot: async (reportId: string, type: ScreenshotType): Promise<void> => {
+    try {
+      const res = await client.get(`/v1/reports/${reportId}/screenshot`, {
+        params: { type },
+        responseType: "blob",
+      });
+      saveBlob(res.data, "image/png", `${type}_complaint_${reportId}.png`);
+    } catch (err: any) {
+      throw new Error(
+        await readBlobError(err, `No ${type.toUpperCase()} screenshot available yet.`)
+      );
+    }
   },
   sendComplaint: async (reportId: string, payload: any) => {
   const response = await client.post(`/v1/reports/${reportId}/send-complaint`, payload);

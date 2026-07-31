@@ -26,9 +26,12 @@ router = Router()
 
 class AuthBearer(HttpBearer):
     def authenticate(self, request, token: str):
+        # NOTE: ninja's HttpBearer.__call__ bails out with None when the
+        # Authorization header is missing, so this method only ever runs with a
+        # header-supplied token. A `?token=` query-param fallback here is
+        # unreachable — download links must send the header instead (see
+        # reportsApi.exportCsv, which fetches as a blob through axios).
         from ninja_jwt.tokens import AccessToken
-        if not token:
-            token = request.GET.get("token", "")
         try:
             access_token = AccessToken(token)
             user_id = access_token["user_id"]

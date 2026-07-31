@@ -2,8 +2,9 @@ import React, { useState, useRef, useEffect } from "react";
 import {
   ExternalLink, Send, Skull, RefreshCw, ChevronDown, ChevronUp,
   CheckCircle2, XCircle, Clock, Shield, Mail, Plus, X, Paperclip,
+  Camera, Download,
 } from "lucide-react";
-import type { ScamReport } from "../types";
+import type { ScamReport, ScreenshotAvailability, ScreenshotType } from "../types";
 import Badge from "./ui/Badge";
 import { reportsApi } from "../api/reports";
 
@@ -13,6 +14,7 @@ interface ReportsTableProps {
   onReport: (id: string) => void;
   onKill: (id: string) => void;
   onEmailReport: (id: string, payload: EmailPayload) => Promise<void>;
+  onNotify?: (message: string, success: boolean) => void;
 }
 
 export interface EmailImage {
@@ -410,11 +412,127 @@ const ReportDropdown: React.FC<ReportDropdownProps> = ({
   );
 };
 
+// ─── Screenshot Menu ─────────────────────────────────────────────────────────
+
+const SCREENSHOT_LABELS: Record<ScreenshotType, string> = {
+  ftc: "FTC submission",
+  ic3: "IC3 submission",
+};
+
+interface ScreenshotMenuProps {
+  reportId: string;
+  onNotify: (message: string, success: boolean) => void;
+}
+
+/**
+ * Lazily asks the API which submission screenshots exist for this report, then
+ * downloads the chosen one through the authenticated client.
+ */
+const ScreenshotMenu: React.FC<ScreenshotMenuProps> = ({ reportId, onNotify }) => {
+  const [open, setOpen] = useState(false);
+  const [avail, setAvail] = useState<ScreenshotAvailability | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [downloading, setDownloading] = useState<ScreenshotType | null>(null);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Availability is re-fetched on each open: FTC/IC3 screenshots land
+  // asynchronously after the authority submission finishes.
+  const toggle = async () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    setLoading(true);
+    try {
+      setAvail(await reportsApi.getScreenshots(reportId));
+    } catch {
+      setAvail(null);
+      onNotify("Could not load screenshots for this report.", false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const download = async (type: ScreenshotType) => {
+    setDownloading(type);
+    try {
+      await reportsApi.downloadScreenshot(reportId, type);
+      setOpen(false);
+    } catch (err: any) {
+      onNotify(err?.message || "Download failed.", false);
+    } finally {
+      setDownloading(null);
+    }
+  };
+
+  const types: ScreenshotType[] = ["ftc", "ic3"];
+  const noneAvailable =
+    !loading && avail !== null && !avail.ftc.available && !avail.ic3.available;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={toggle}
+        title="Download submission screenshots"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-colors text-xs font-medium"
+      >
+        <Camera size={11} />
+        <span className="hidden sm:inline">Evidence</span>
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1 right-0 z-40 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xl min-w-[210px]">
+          {loading ? (
+            <div className="flex items-center gap-2 px-3.5 py-2.5 text-xs text-slate-400">
+              <RefreshCw size={11} className="animate-spin" /> Checking…
+            </div>
+          ) : noneAvailable ? (
+            <div className="px-3.5 py-2.5 text-[11px] text-slate-400 leading-relaxed">
+              No screenshots yet. They appear once the FTC/IC3 submission finishes.
+            </div>
+          ) : (
+            types.map((type) => {
+              const ready = avail?.[type].available ?? false;
+              return (
+                <button
+                  key={type}
+                  onClick={() => ready && download(type)}
+                  disabled={!ready || downloading !== null}
+                  className="w-full flex items-start gap-3 px-3.5 py-2.5 hover:bg-slate-50 disabled:hover:bg-transparent disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-left"
+                >
+                  {downloading === type
+                    ? <RefreshCw size={13} className="text-blue-600 mt-0.5 shrink-0 animate-spin" />
+                    : <Download size={13} className="text-blue-600 mt-0.5 shrink-0" />}
+                  <div>
+                    <div className="text-xs font-medium text-slate-900">
+                      {SCREENSHOT_LABELS[type]}
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-0.5">
+                      {ready ? "Download PNG" : "Not available"}
+                    </div>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── Main Table ──────────────────────────────────────────────────────────────
 
 const ReportsTable: React.FC<ReportsTableProps> = ({
-  reports, actionLoading, onReport, onKill, onEmailReport,
+  reports, actionLoading, onReport, onKill, onEmailReport, onNotify,
 }) => {
+  const notify = onNotify ?? (() => {});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [logs, setLogs] = useState<Record<string, ReportLog[]>>({});
   const [logsLoading, setLogsLoading] = useState<string | null>(null);
@@ -584,6 +702,8 @@ const ReportsTable: React.FC<ReportsTableProps> = ({
                             {r.status === "killed" && (
                               <span className="text-xs text-slate-400 font-mono">Terminated</span>
                             )}
+                            {/* Available for killed reports too — the evidence outlives the takedown. */}
+                            <ScreenshotMenu reportId={r.id} onNotify={notify} />
                           </div>
                         </td>
                         <td className="px-5 py-4">

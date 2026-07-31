@@ -277,6 +277,14 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      await reportsApi.exportCsv();
+    } catch (err: any) {
+      showToast(err?.message || "Could not export reports.", false);
+    }
+  };
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const statConfigs = [
@@ -352,7 +360,7 @@ const Dashboard: React.FC = () => {
               <button onClick={() => { setLoading(true); fetchAll(); }} className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-200 transition-all">
                 <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
               </button>
-              <button onClick={() => reportsApi.exportCsv()} className="flex items-center gap-2 h-9 px-3.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-200 text-xs font-medium transition-all">
+              <button onClick={handleExport} className="flex items-center gap-2 h-9 px-3.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-200 text-xs font-medium transition-all">
                 <Download size={13} /> Export
               </button>
               <button onClick={() => navigate("/emails")} className="flex items-center gap-2 h-9 px-3.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-200 text-xs font-medium transition-all">
@@ -458,7 +466,7 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="hidden sm:block text-[11px] text-slate-400 font-mono">{total.toLocaleString()} records</span>
-                <button onClick={() => reportsApi.exportCsv()} className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-200 text-xs font-medium transition-all">
+                <button onClick={handleExport} className="flex items-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-200 text-xs font-medium transition-all">
                   <Download size={12} /> <span className="hidden sm:inline">CSV</span>
                 </button>
                 <button onClick={() => { setLoading(true); fetchAll(); }} className="h-8 px-3 flex items-center gap-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-200 text-xs transition-all">
@@ -482,7 +490,7 @@ const Dashboard: React.FC = () => {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <ReportsTable reports={reports} actionLoading={actionLoading} onReport={(id) => handleAction(id, "report")} onKill={(id) => handleAction(id, "kill")} onEmailReport={handleEmailReport} />
+                <ReportsTable reports={reports} actionLoading={actionLoading} onReport={(id) => handleAction(id, "report")} onKill={(id) => handleAction(id, "kill")} onEmailReport={handleEmailReport} onNotify={showToast} />
               </div>
             )}
 

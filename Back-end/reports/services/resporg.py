@@ -1165,7 +1165,7 @@ def extract_phone_from_url(url: str) -> str:
         phone = result.stdout.strip()
 
         # Validate what came back — subprocess output could be garbage
-        if phone and clean_phone(phone):
+        if phone and clean_phone(phone): 
             return phone
 
         logger.warning(f"No toll-free number found for: {url}")
