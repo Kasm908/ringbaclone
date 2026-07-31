@@ -380,6 +380,10 @@ def submit_to_authorities(report_id: str):
     try:
         report = ScamReport.objects.get(id=report_id)
 
+        # Each worker records its own outcome here so the parent can settle the
+        # report's final status once both have finished.
+        outcomes = {}
+
         def run_ftc():
             try:
                 success, message, screenshot, screenshot_b64 = submit_ftc_complaint(
@@ -397,11 +401,21 @@ def submit_to_authorities(report_id: str):
                     reporter_phone=report.reporter_phone,
                     reporter_email=report.reporter_email,
                 )
+                outcomes["ftc"] = success
+                # Persist the base64 copy as well as the path: Render's disk is
+                # ephemeral, so a path alone is gone after the next restart.
+                fields = []
                 if screenshot:
                     report.ftc_screenshot = screenshot
-                    report.save()
+                    fields.append("ftc_screenshot")
+                if screenshot_b64:
+                    report.ftc_screenshot_b64 = screenshot_b64
+                    fields.append("ftc_screenshot_b64")
+                if fields:
+                    report.save(update_fields=fields + ["updated_at"])
                 ReportLog.objects.create(report=report, action="FTC_SUBMISSION", detail=message, success=success)
             except Exception as e:
+                outcomes["ftc"] = False
                 logger.error(f"FTC failed: {e}", exc_info=True)
 
         def run_ic3():
@@ -419,20 +433,22 @@ def submit_to_authorities(report_id: str):
                     reporter_phone=report.reporter_phone,
                     reporter_email=report.reporter_email,
                 )
+                outcomes["ic3"] = success
+                # Previously the save() sat inside the b64 branch, so a
+                # screenshot path with no b64 was silently dropped.
+                fields = []
                 if screenshot:
                     report.ic3_screenshot = screenshot
+                    fields.append("ic3_screenshot")
                 if screenshot_b64:
-                    report.ic3_screenshot_b64 = screenshot_b64 
-                    report.save()
+                    report.ic3_screenshot_b64 = screenshot_b64
+                    fields.append("ic3_screenshot_b64")
+                if fields:
+                    report.save(update_fields=fields + ["updated_at"])
                 ReportLog.objects.create(report=report, action="IC3_SUBMISSION", detail=message, success=success)
             except Exception as e:
+                outcomes["ic3"] = False
                 logger.error(f"IC3 failed: {e}", exc_info=True)
-
-        for t in [
-            threading.Thread(target=run_ftc, daemon=True),
-            threading.Thread(target=run_ic3, daemon=True),
-        ]:
-            t.start()
 
         ReportLog.objects.create(
             report=report,
@@ -441,10 +457,34 @@ def submit_to_authorities(report_id: str):
             success=True,
         )
 
+        threads = [
+            threading.Thread(target=run_ftc, daemon=True),
+            threading.Thread(target=run_ic3, daemon=True),
+        ]
+        for t in threads:
+            t.start()
+        # Safe to block: submit_to_authorities is itself run in a background
+        # thread, so the HTTP request has already returned by now.
+        for t in threads:
+            t.join()
+
+        # trigger_report optimistically set REPORTED. Only correct it downwards,
+        # and never override an operator who killed the report meanwhile.
+        report.refresh_from_db()
+        if report.status != ScamReport.Status.KILLED and not any(outcomes.values()):
+            report.status = ScamReport.Status.FAILED
+            report.save(update_fields=["status", "updated_at"])
+            ReportLog.objects.create(
+                report=report,
+                action=ReportLog.Action.STATUS_CHANGED,
+                detail="All authority submissions failed — status set to failed",
+                success=False,
+            )
+
         broadcast_update({
             "id": str(report.id),
             "status": report.status,
-            "message": "Authority submissions initiated",
+            "message": f"Authority submissions finished ({sum(1 for v in outcomes.values() if v)}/{len(outcomes)} succeeded)",
         })
 
     except Exception as e:

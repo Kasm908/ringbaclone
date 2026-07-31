@@ -13,7 +13,28 @@ logger = logging.getLogger(__name__)
 
 SCREENSHOTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "screenshots")
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
-IC3_MOCK_SCREENSHOT = os.path.join(os.path.dirname(__file__), "image", "ic3.png")
+
+
+def capture_screenshot(sb, screenshot_path: str) -> str:
+    """
+    Capture the page as it actually stands and return it base64-encoded.
+
+    Every authority submission routes its screenshots through here so FTC and
+    IC3 produce the same kind of artifact. Returns "" when the capture fails,
+    which callers treat as "no image" rather than aborting a submission.
+
+    Do not substitute a canned confirmation image here: these screenshots are
+    the record of what a submission actually did, and they get attached to
+    abuse emails sent to carriers.
+    """
+    try:
+        os.makedirs(os.path.dirname(screenshot_path), exist_ok=True)
+        sb.save_screenshot(screenshot_path)
+        with open(screenshot_path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+    except Exception as e:
+        logger.warning(f"Screenshot capture failed ({screenshot_path}): {e}")
+        return ""
 
 
 import random
@@ -678,13 +699,13 @@ def submit_ftc_complaint(
                 print("FTC went straight to confirmation — done")
                 sb.execute_script("window.scrollTo(0, 0);")
                 ftc_human_delay(500, 800)
-                try:
-                    sb.save_screenshot(screenshot_path)
-                    with open(screenshot_path, "rb") as f:
-                        screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
-                except Exception as e:
-                    print(f"Screenshot failed: {e}")
-                return (True, "FTC complaint submitted", screenshot_path, screenshot_b64)
+                screenshot_b64 = capture_screenshot(sb, screenshot_path)
+                return (
+                    True,
+                    "FTC complaint submitted",
+                    screenshot_path if screenshot_b64 else None,
+                    screenshot_b64 or None,
+                )
             # Step 6: Reporter info
             sb.wait_for_element_present("#yes-or-no-report-other-yes", timeout=15)
             ftc_human_delay(600, 1200)
@@ -737,23 +758,23 @@ def submit_ftc_complaint(
                 "confirm" in final_title.lower()
             )
 
-            if success:
-                try:
-                    # Scroll to top first so full page capture starts from top
-                    sb.execute_script("window.scrollTo(0, 0);")
-                    ftc_human_delay(500, 800)
-                    sb.save_screenshot(screenshot_path)
-                    with open(screenshot_path, "rb") as f:
-                        screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
-                    print(f"[+] FTC screenshot saved: {screenshot_path}")
-                except Exception as e:
-                    print(f"Screenshot failed: {e}")
+            # Capture regardless of outcome — on failure this is the record of
+            # where the FTC flow stopped. Scroll to top first so the capture
+            # starts from the top of the page.
+            try:
+                sb.execute_script("window.scrollTo(0, 0);")
+                ftc_human_delay(500, 800)
+            except Exception:
+                pass
+            screenshot_b64 = capture_screenshot(sb, screenshot_path)
+            if screenshot_b64:
+                print(f"[+] FTC screenshot saved: {screenshot_path}")
 
             return (
                 success,
                 "FTC complaint submitted" if success else "FTC submission failed",
-                screenshot_path if success else None,
-                screenshot_b64 if success else None,
+                screenshot_path if screenshot_b64 else None,
+                screenshot_b64 or None,
             )
             # sb.execute_script(
             #     "(function() {"
@@ -1715,6 +1736,14 @@ def submit_ic3_complaint(
                     pass
                 time.sleep(0.5)
             else:
+                # Capture what IC3 actually showed us instead of the form. This
+                # is the only record of why the run failed, and it also keeps
+                # the "always one image per submission" guarantee on this path.
+                screenshot_b64 = capture_screenshot(sb, screenshot_path)
+                try:
+                    print("IC3 form timeout — page URL:", sb.get_current_url())
+                except Exception:
+                    pass
                 raise Exception("IC3 form never loaded after 30s")
 
             ic3_inject_fingerprint(sb, fp)
@@ -1874,15 +1903,9 @@ def submit_ic3_complaint(
 
             # Screenshot before submit
             print("Submitting form...")
-            try:
-                # sb.save_screenshot(screenshot_path)
-                # with open(screenshot_path, "rb") as f:
-                #     screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
-                with open(IC3_MOCK_SCREENSHOT, "rb") as f:
-                    screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
+            screenshot_b64 = capture_screenshot(sb, screenshot_path)
+            if screenshot_b64:
                 print(f"[+] Pre-submit screenshot saved: {screenshot_path}")
-            except Exception as e:
-                print(f"Pre-submit screenshot failed: {e}")
 
             submit_btn = sb.driver.find_element("css selector", "button[type='submit']")
             sb.driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", submit_btn)
@@ -1905,15 +1928,12 @@ def submit_ic3_complaint(
                     ]):
                         confirmation_html = page_html
                         confirmation_url  = current_url
-                        try:
-                            # sb.save_screenshot(screenshot_path)
-                            # with open(screenshot_path, "rb") as f:
-                            #     screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
-                            with open(IC3_MOCK_SCREENSHOT, "rb") as f:
-                                screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
+                        # Capture the real confirmation page — this is the shot
+                        # worth keeping, so it replaces the pre-submit one.
+                        shot = capture_screenshot(sb, screenshot_path)
+                        if shot:
+                            screenshot_b64 = shot
                             print(f"[+] Screenshot saved: {screenshot_path}")
-                        except Exception as e:
-                            print(f"Screenshot failed: {e}")
                         print(f"[+] Confirmation page captured at: {current_url}")
                         break
 
@@ -1921,28 +1941,18 @@ def submit_ic3_complaint(
                         confirmation_html = page_html
                         confirmation_url  = current_url
                         ic3_human_delay(2000, 3000)
-                        try:
-                            # sb.save_screenshot(screenshot_path)
-                            # with open(screenshot_path, "rb") as f:
-                            #         screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
-                            with open(IC3_MOCK_SCREENSHOT, "rb") as f:
-                                screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
+                        shot = capture_screenshot(sb, screenshot_path)
+                        if shot:
+                            screenshot_b64 = shot
                             print(f"[+] Screenshot saved (search redirect): {screenshot_path}")
-                        except Exception as e:
-                            print(f"Screenshot failed: {e}")
                         break
 
                     if "chrome-error" in current_url:
                         confirmation_html = page_html
                         confirmation_url  = current_url
-                        try:
-                            # sb.save_screenshot(screenshot_path)
-                            # with open(screenshot_path, "rb") as f:
-                            #     screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
-                            with open(IC3_MOCK_SCREENSHOT, "rb") as f:
-                                screenshot_b64 = base64.b64encode(f.read()).decode("utf-8")
-                        except Exception:
-                            pass
+                        shot = capture_screenshot(sb, screenshot_path)
+                        if shot:
+                            screenshot_b64 = shot
                         break
 
                 except Exception:
@@ -1994,14 +2004,22 @@ def submit_ic3_complaint(
                 "thank"   in final_title.lower()
             )
 
+            # Return the screenshot whether or not the submission succeeded: a
+            # failed run is exactly when the operator needs to see what IC3 put
+            # on screen.
             return (
                 success,
                 "IC3 complaint submitted" if success else "IC3 submission failed",
-                screenshot_path if success else None,
-                screenshot_b64 if success else None,
+                screenshot_path if screenshot_b64 else None,
+                screenshot_b64 or None,
             )
 
     except Exception as e:
         logger.error(f"IC3 submission failed: {e}")
-        return (False, str(e), None, None)
+        return (
+            False,
+            str(e),
+            screenshot_path if screenshot_b64 else None,
+            screenshot_b64 or None,
+        )
 

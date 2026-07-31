@@ -163,6 +163,21 @@ def trigger_report(request, report_id: UUID):
             "new_status": report.status,
         }
 
+    # Leave PENDING straight away so the operator sees the state change on this
+    # response. The FTC/IC3 runs take minutes in a background thread, and the
+    # websocket that would otherwise carry the update is not reliable, so an
+    # optimistic transition here is what actually reaches the UI.
+    # submit_to_authorities() downgrades this to FAILED if every submission fails.
+    report.status = ScamReport.Status.REPORTED
+    report.report_sent_at = timezone.now()
+    report.save(update_fields=["status", "report_sent_at", "updated_at"])
+
+    ReportLog.objects.create(
+        report=report,
+        action=ReportLog.Action.STATUS_CHANGED,
+        detail=f"Status changed from pending to {report.status} — authority submission started",
+    )
+
     # Phase 1 & 2: Carrier abuse email
     # threading.Thread(target=process_report_complaint, args=(str(report.id),), daemon=True).start()
     threading.Thread(target=submit_to_authorities, args=(str(report.id),), daemon=True).start()
@@ -428,28 +443,34 @@ def get_ic3_screenshot(request, report_id: UUID):
     import base64
     return HttpResponse(base64.b64decode(report.ic3_screenshot_b64), content_type='image/png')
 
+def screenshot_is_available(report, kind: str) -> bool:
+    """
+    A screenshot counts as available if we hold the base64 copy, or the file
+    path still resolves. Both authorities are checked the same way so the UI
+    behaves identically for each.
+    """
+    if getattr(report, f"{kind}_screenshot_b64", ""):
+        return True
+    path = getattr(report, f"{kind}_screenshot", "")
+    return bool(path and os.path.exists(path))
+
+
 @router.get("/reports/{report_id}/screenshots", auth=auth, tags=["Screenshots"])
 def get_all_screenshots(request, report_id: UUID):
-
     """Get list of available screenshots for a report."""
     report = get_owned_report(request, report_id)
-    
-    screenshots = {
-        "ftc": {
-            "available": bool(report.ftc_screenshot and os.path.exists(report.ftc_screenshot)),
-            "url": f"/api/v1/reports/{report_id}/screenshots/ftc" if report.ftc_screenshot else None,
-        },
-        # "ic3": {
-        #     "available": bool(report.ic3_screenshot and os.path.exists(report.ic3_screenshot)),
-        #     "url": f"/api/v1/reports/{report_id}/screenshots/ic3" if report.ic3_screenshot else None,
-        # },
-        "ic3": {
-            "available": bool(report.ic3_screenshot_b64),
-            "url": f"/api/v1/reports/{report_id}/screenshots/ic3" if report.ic3_screenshot_b64 else None,
-        },
+
+    return {
+        kind: {
+            "available": screenshot_is_available(report, kind),
+            "url": (
+                f"/api/v1/reports/{report_id}/screenshot?type={kind}"
+                if screenshot_is_available(report, kind)
+                else None
+            ),
+        }
+        for kind in ("ftc", "ic3")
     }
-    
-    return screenshots
 
 
 
@@ -647,19 +668,25 @@ def get_all_emails(request):
 
 @router.get("/reports/{report_id}/screenshot", auth=auth, tags=["Screenshots"])
 def get_screenshot_by_type(request, report_id: UUID, type: str = "ftc"):
+    """
+    Serve one authority screenshot. FTC and IC3 resolve identically: the
+    base64 copy wins, falling back to the on-disk file for older reports
+    captured before base64 storage existed.
+    """
+    if type not in ("ftc", "ic3"):
+        raise HttpError(400, "type must be 'ftc' or 'ic3'")
+
     report = get_owned_report(request, report_id)
-    
-    if type == "ic3":
-        if not report.ic3_screenshot_b64:
-            raise HttpError(404, "Screenshot not found")
-        import base64
-        return HttpResponse(base64.b64decode(report.ic3_screenshot_b64), content_type='image/png')
-    
-    # FTC stays the same — reads from file
-    path = report.ftc_screenshot
-    if not path or not os.path.exists(path):
-        raise HttpError(404, "Screenshot not found")
-    return FileResponse(open(path, 'rb'), content_type='image/png')
+
+    b64 = getattr(report, f"{type}_screenshot_b64", "")
+    if b64:
+        return HttpResponse(base64.b64decode(b64), content_type="image/png")
+
+    path = getattr(report, f"{type}_screenshot", "")
+    if path and os.path.exists(path):
+        return FileResponse(open(path, "rb"), content_type="image/png")
+
+    raise HttpError(404, f"No {type.upper()} screenshot stored for this report")
 
 
 
