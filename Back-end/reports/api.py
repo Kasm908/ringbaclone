@@ -551,6 +551,77 @@ def send_email_complaint(request, report_id: UUID, payload: EmailComplaintIn):
 
 
 
+class BulkScanIn(Schema):
+    urls: List[str]
+
+
+@router.post("/bulk-scan", auth=auth, tags=["Bulk Scan"])
+def start_bulk_scan(request, payload: BulkScanIn):
+    """
+    Kick off a batch scan of landing pages.
+
+    Runs in a background thread and streams partial results into the cache, so
+    the client polls /bulk-scan/{scan_id} and watches rows fill in rather than
+    holding a request open for the length of a browser session.
+    """
+    import uuid
+    from django.core.cache import cache
+    from reports.services.bulk_scan import scan_urls, MAX_URLS
+    from ninja.errors import HttpError
+
+    urls = list(dict.fromkeys(u.strip() for u in payload.urls if u and u.strip()))
+    if not urls:
+        raise HttpError(400, "Provide at least one URL to scan.")
+
+    truncated = max(0, len(urls) - MAX_URLS)
+    urls = urls[:MAX_URLS]
+
+    scan_id = str(uuid.uuid4())
+    key = f"bulkscan_{scan_id}"
+    cache.set(key, {
+        "done": False, "total": len(urls), "scanned": 0,
+        "results": [], "truncated": truncated,
+    }, timeout=1800)
+
+    def run():
+        def progress(results):
+            cache.set(key, {
+                "done": False, "total": len(urls), "scanned": len(results),
+                "results": results, "truncated": truncated,
+            }, timeout=1800)
+        try:
+            results = scan_urls(urls, progress=progress)
+        except Exception as e:
+            logger.error(f"[BULK SCAN] scan crashed: {e}", exc_info=True)
+            results = []
+        cache.set(key, {
+            "done": True, "total": len(urls), "scanned": len(results),
+            "results": results, "truncated": truncated,
+        }, timeout=1800)
+
+    threading.Thread(target=run, daemon=True).start()
+
+    return {
+        "scan_id": scan_id,
+        "total": len(urls),
+        "truncated": truncated,
+        "message": (
+            f"Scanning {len(urls)} URL(s)."
+            + (f" {truncated} dropped — {MAX_URLS} per batch max." if truncated else "")
+        ),
+    }
+
+
+@router.get("/bulk-scan/{scan_id}", auth=auth, tags=["Bulk Scan"])
+def bulk_scan_result(request, scan_id: str):
+    from django.core.cache import cache
+
+    data = cache.get(f"bulkscan_{scan_id}")
+    if not data:
+        return {"done": False, "total": 0, "scanned": 0, "results": [], "expired": True}
+    return data
+
+
 @router.get("/ad-library/facebook", auth=auth, tags=["Ad Library"])
 def facebook_ad_library(request, domain: str, campaign_id: str = ""):
     from reports.services.ad_library import search_facebook_ads

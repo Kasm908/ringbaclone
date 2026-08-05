@@ -62,6 +62,33 @@ export interface ActionResult {
 }
 
 
+export interface HarvestedNumber {
+  number: string;
+  carrier: string;
+}
+
+export type ScanStatus = "SCANNED" | "DEAD_DNS" | "BLOCKED" | "INVALID" | "ERROR";
+
+export interface ScanResult {
+  url: string;
+  status: ScanStatus;
+  status_code: number | null;
+  harvested_numbers: HarvestedNumber[];
+  telemetry: string[];
+  telemetry_total: number;
+  ocr_used: boolean;
+  error: string;
+}
+
+export interface BulkScanProgress {
+  done: boolean;
+  total: number;
+  scanned: number;
+  results: ScanResult[];
+  truncated?: number;
+  expired?: boolean;
+}
+
 export type ScreenshotType = "ftc" | "ic3";
 
 export interface ScreenshotAvailability {

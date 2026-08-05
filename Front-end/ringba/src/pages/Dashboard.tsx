@@ -28,6 +28,7 @@ import type { EmailPayload } from "../components/ReportsTable";
 const LookupPanel = lazy(() => import("../components/LookupPanel"));
 const AdLibraryPanel = lazy(() => import("../components/AddLibraryPanel"));
 const GoogleAdsPanel = lazy(() => import("../components/GoogleAdsPanel"));
+const BulkScanPanel = lazy(() => import("../components/BulkScanPanel"));
 
 const PAGE_SIZE = 20;
 const MAX_WEBSOCKET_RETRIES = 5;
@@ -447,6 +448,12 @@ const Dashboard: React.FC = () => {
                 <GoogleAdsPanel />
               </Suspense>
             </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+            <Suspense fallback={<div className="h-32 animate-pulse bg-white" />}>
+              <BulkScanPanel />
+            </Suspense>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">

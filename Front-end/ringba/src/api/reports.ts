@@ -1,5 +1,5 @@
 import client from "./client";
-import type { PaginatedReports, ScamReport, Stats, ActionResult, SentEmail, ScreenshotAvailability, ScreenshotType } from "../types";
+import type { PaginatedReports, ScamReport, Stats, ActionResult, SentEmail, ScreenshotAvailability, ScreenshotType, BulkScanProgress } from "../types";
 
 /** Save an in-memory payload to the user's disk via a temporary object URL. */
 const saveBlob = (data: BlobPart, mime: string, filename: string) => {
@@ -137,6 +137,18 @@ export const reportsApi = {
     } catch (err: any) {
       throw new Error(await readBlobError(err, "Could not export reports."));
     }
+  },
+
+  startBulkScan: async (
+    urls: string[]
+  ): Promise<{ scan_id: string; total: number; truncated: number; message: string }> => {
+    const res = await client.post("/v1/bulk-scan", { urls });
+    return res.data;
+  },
+
+  getBulkScan: async (scanId: string): Promise<BulkScanProgress> => {
+    const res = await client.get(`/v1/bulk-scan/${scanId}`);
+    return res.data;
   },
 
   getScreenshots: async (reportId: string): Promise<ScreenshotAvailability> => {
