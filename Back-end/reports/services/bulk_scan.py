@@ -283,7 +283,11 @@ def scan_urls(urls, progress=None):
             except Exception:
                 pass
             if stderr.strip():
-                logger.debug(f"[BULK SCAN] subprocess stderr:\n{stderr.strip()[:2000]}")
+                # If the subprocess reported nothing at all it crashed at startup
+                # (e.g. missing Playwright browser) — surface that even in prod,
+                # where DEBUG is off and logger.debug is swallowed.
+                level = logger.warning if not seen else logger.debug
+                level(f"[BULK SCAN] subprocess stderr:\n{stderr.strip()[:2000]}")
 
         # Anything the subprocess never reported on (crash / kill) still needs a row.
         for url in loadable:
