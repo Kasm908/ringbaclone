@@ -5,20 +5,17 @@ WORKDIR /app
 ENV SB_SKIP_BROWSER_INSTALL=1
 ENV SELENIUMBASE_NO_BROWSER_INSTALL=1
 ENV PYTHONUNBUFFERED=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin
 
-# Tesseract for the OCR fallback. Chromium itself is provided by Playwright
-# (installed below) — the apt chromium is not what Playwright launches.
+# Install Chrome + tesseract
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
+    chromium \
+    chromium-driver \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
 RUN pip install -r requirements.txt
-
-# Download Playwright's pinned Chromium + its system libraries. Without this the
-# scan subprocess dies at launch with "Executable doesn't exist / run playwright
-# install", which surfaces as every URL reporting "Scan did not complete".
-RUN playwright install --with-deps chromium
 
 COPY . .
 

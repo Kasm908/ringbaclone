@@ -102,6 +102,7 @@ def main():
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
+            executable_path="/usr/bin/chromium",
             args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
         )
         context = browser.new_context(
