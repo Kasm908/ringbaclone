@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
 import {
-  Mail, CheckCircle2, XCircle, Eye, RefreshCw, Search, X, ArrowLeft,
+  Mail, CheckCircle2, XCircle, Eye, RefreshCw, Search, X,
   Inbox, Send, AlertTriangle,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { reportsApi } from "../api/reports";
 import type { SentEmail } from "../types";
 
@@ -52,7 +51,6 @@ const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
 };
 
 const EmailLogs: React.FC = () => {
-  const navigate = useNavigate();
   const [emails, setEmails] = useState<SentEmail[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -89,44 +87,18 @@ const EmailLogs: React.FC = () => {
   const failedCount = emails.filter((e) => e.status !== "sent").length;
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900 font-sans">
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-slate-100/90 backdrop-blur-xl">
-        <div className="max-w-[1680px] mx-auto px-5 sm:px-8 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("/dashboard")}
-              title="Back to Dashboard"
-              className="w-9 h-9 flex items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:text-slate-900 hover:border-slate-300 transition-all"
-            >
-              <ArrowLeft size={14} />
-            </button>
-            <div className="flex flex-col leading-none gap-1">
-              <span className="text-slate-900 font-bold text-sm tracking-tight">Email Logs</span>
-              <span className="text-slate-400 text-[10px] font-mono uppercase tracking-widest">
-                All sent abuse emails
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={fetchEmails}
-              className="flex items-center gap-2 h-9 px-3.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 text-xs font-medium transition-all"
-            >
-              <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
-            <button
-              onClick={() => navigate("/dashboard")}
-              className="hidden sm:flex items-center gap-2 h-9 px-3.5 rounded-lg border border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300 text-xs font-medium transition-all"
-            >
-              Dashboard
-            </button>
-          </div>
+    <>
+      <div className="space-y-4">
+        <div className="flex justify-end">
+          <button
+            onClick={fetchEmails}
+            className="flex items-center gap-2 h-9 px-3.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:border-slate-300 text-xs font-medium transition-all"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
         </div>
-      </header>
 
-      <div className="max-w-[1680px] mx-auto px-5 sm:px-8 py-6 space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <StatCard label="Total Sent" value={emails.length} icon={Send} accent="#64748B" />
           <StatCard label="Successful" value={sentCount} icon={CheckCircle2} accent="#059669" />
@@ -319,7 +291,7 @@ const EmailLogs: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
